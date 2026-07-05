@@ -38,7 +38,9 @@ These are settled and should be treated as constraints:
 
 ## Implemented vs. stubbed
 
-Working: config, models + initial migration, Fernet token crypto, the full Plaid provider (link/exchange/sync/accounts), transaction sync/upsert, and the API routes. **Not yet implemented** (deliberate scaffold gaps, each marked with a TODO in code): the detection engine (`detection/engine.py` raises `NotImplementedError`), user auth (`/link` and `/subscriptions` use a placeholder user — `TODO(auth)`), and Plaid webhook signature verification (`api/routes/webhooks.py`). Don't assume these are done.
+Working end-to-end: config, models + initial migration, Fernet token crypto, the full Plaid provider (link/exchange/sync/accounts), transaction sync/upsert with account auto-creation, **JWT auth** (register/login via `bcrypt` directly — deliberately not passlib, which is unmaintained and warns on bcrypt≥4.1 — all data routes require a Bearer token), the **two-phase detection engine** (heuristic interval analysis in `detection/engine.py`; Claude structured-output pass in `detection/ai.py`, a no-op without `ANTHROPIC_API_KEY`), and **verified Plaid webhooks** (ES256 JWT + body-hash check in `providers/plaid/webhook.py`; `PLAID_VERIFY_WEBHOOKS=false` for local testing only) that trigger background sync + detection.
+
+Still open: refresh tokens (access tokens only, 15 min), APScheduler polling fallback (webhook-driven sync only), `/accounts` and `/transactions` query routes, and the frontend.
 
 ## UI philosophy
 

@@ -67,7 +67,7 @@ This document covers system design only. Product scope, roadmap, data-model DDL,
 
 **Framework:** `FastAPI` — native async (aligns with async DB drivers), first-class Pydantic validation, auto-generated OpenAPI schema for frontend work, low overhead for a single-service MVP.
 
-**Auth:** `python-jose` (JWT) + `passlib[bcrypt]`. Short-lived access + refresh tokens assumed (§6.4).
+**Auth:** `python-jose` (JWT) + `bcrypt` used directly (passlib was dropped: unmaintained, warns on bcrypt≥4.1). Short-lived access tokens implemented; refresh tokens still open (§6.4).
 
 **Config:** `pydantic-settings` — a `Settings` class reads DB URL, Plaid credentials, encryption key, and JWT secret from environment variables, validated at startup.
 
@@ -131,8 +131,8 @@ Confirmed with the user: Python, Plaid, Canadian market, prior-Plaid-code reuse,
 | 6.1 | The reusable Plaid integration is (or can be adapted to) Python and a current `plaid-python`. | Locate the prior project; confirm language and Plaid/SDK version before copying. |
 | 6.2 | Plaid covers the target Canadian institutions. Plaid's Canadian coverage has historically trailed its US coverage. | Verify sandbox + production institution coverage. Evaluate a Canadian-native aggregator (e.g. Flinks) as a fallback behind the `BankingProvider` ABC. |
 | 6.3 | Single-instance deployment (makes in-process APScheduler safe). | If multi-instance, move scheduling to an out-of-process worker (Celery + Redis) to avoid duplicate sync jobs. |
-| 6.4 | Auth is username/password + JWT; no social login for MVP. | Confirm whether Google/Apple OAuth is in scope. |
-| 6.5 | A cost-efficient Claude model is used for the AI detection pass. | Choose the specific model and confirm the acceptable per-run API cost envelope. |
+| 6.4 | Auth is username/password + JWT (**implemented**; access tokens only). | Confirm whether Google/Apple OAuth and refresh tokens are in scope. |
+| 6.5 | The AI detection pass defaults to `claude-opus-4-8` (overridable via `ANTHROPIC_MODEL`). | Confirm the acceptable per-run API cost envelope; a cheaper model can be configured if needed. |
 | 6.6 | The frontend is a separate JSON-API-consuming web app (this doc covers the backend only). | Confirm framework and whether it lives in this repo (monorepo) or a separate one. |
 | 6.7 | `raw_payload` (full Plaid object) is retained as JSONB for re-detection and debugging. | Confirm whether storage cost warrants pruning it. |
 | 6.8 | No specific Canadian privacy-law (PIPEDA / Quebec Law 25) affordances are built for MVP. | Given real user financial data, confirm whether consent logging, data deletion, or residency requirements are in scope before storing production data. |

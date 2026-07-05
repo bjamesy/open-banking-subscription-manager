@@ -32,7 +32,15 @@ class Settings(BaseSettings):
 
     # Anthropic (AI-assisted detection). Model is an open question (§6.5).
     anthropic_api_key: str = ""
-    anthropic_model: str = "claude-haiku-4-5-20251001"
+    anthropic_model: str = "claude-opus-4-8"
+
+    # Detection (§2.4). Heuristic candidates below the threshold are escalated
+    # to the AI pass (when an API key is configured).
+    detection_confidence_threshold: float = 0.7
+    detection_min_occurrences: int = 2
+
+    # Webhooks (§5.2). Verification can be disabled only for local testing.
+    plaid_verify_webhooks: bool = True
 
     # Fernet key for encrypting Plaid access tokens at rest.
     encryption_key: str = ""
