@@ -4,7 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-Monorepo. `backend/` is a scaffolded Python/FastAPI service (boots, DB migration applies, tests pass). `frontend/` is an empty placeholder — framework not chosen yet (architecture §6.6).
+Monorepo. `backend/` is a working Python/FastAPI service; `frontend/` is a Vite + React + TypeScript SPA (stack mirrors the sibling `../cresidential` project — resolves architecture §6.6). Frontend UI conventions come from `docs/specs/ui.md`.
+
+## Frontend commands (run from `frontend/`)
+
+```bash
+npm install
+npm run dev      # http://localhost:5173 — proxies /api/* to the backend on :8000
+npm run build    # tsc typecheck + vite build
+```
+
+All frontend API calls go through the `/api` prefix (Vite proxy strips it in dev) so SPA routes never collide with backend paths. `src/api/client.ts` holds tokens in localStorage and auto-refreshes on 401 with request replay.
 
 ## Commands (run from `backend/`)
 

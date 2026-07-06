@@ -133,6 +133,6 @@ Confirmed with the user: Python, Plaid, Canadian market, prior-Plaid-code reuse,
 | 6.3 | Single-instance deployment (makes in-process APScheduler safe). | If multi-instance, move scheduling to an out-of-process worker (Celery + Redis) to avoid duplicate sync jobs. |
 | 6.4 | Auth is username/password + JWT (**implemented**; access tokens only). | Confirm whether Google/Apple OAuth and refresh tokens are in scope. |
 | 6.5 | The AI detection pass defaults to `claude-opus-4-8` (overridable via `ANTHROPIC_MODEL`). | Confirm the acceptable per-run API cost envelope; a cheaper model can be configured if needed. |
-| 6.6 | The frontend is a separate JSON-API-consuming web app (this doc covers the backend only). | Confirm framework and whether it lives in this repo (monorepo) or a separate one. |
+| 6.6 | **Resolved:** the frontend is a Vite + React + TypeScript SPA in `frontend/` (monorepo), consuming the JSON API via an `/api` proxy. Stack mirrors the prior cresidential project. | — |
 | 6.7 | `raw_payload` (full Plaid object) is retained as JSONB for re-detection and debugging. | Confirm whether storage cost warrants pruning it. |
 | 6.8 | No specific Canadian privacy-law (PIPEDA / Quebec Law 25) affordances are built for MVP. | Given real user financial data, confirm whether consent logging, data deletion, or residency requirements are in scope before storing production data. |
