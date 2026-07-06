@@ -30,7 +30,15 @@ ruff check . && ruff format .          # lint / format
 mypy src                               # type check
 ```
 
-Runs on the system Python 3.9. `DATABASE_URL` defaults to sqlite for local dev; production is Postgres. The generated initial migration reflects sqlite — regenerate/verify against Postgres before deploying (and migrate `Transaction.raw_payload` JSON → JSONB, architecture §6.7).
+Runs on the system Python 3.9 locally (Python 3.12 in Docker). `DATABASE_URL` defaults to sqlite for local dev; Postgres in Docker/production. The initial migration is **verified against Postgres 16** (applied cleanly via compose); `Transaction.raw_payload` JSON → JSONB remains a future optimization (architecture §6.7).
+
+## Docker (whole project at once)
+
+```bash
+docker compose up --build   # frontend :5173 (nginx SPA + /api proxy), backend :8000, postgres 16
+```
+
+Secrets come from `backend/.env`; compose overrides `DATABASE_URL` to the `db` service. Backend container runs `alembic upgrade head` on start. The Docker frontend is a production build — use `npm run dev` for UI iteration.
 
 ## What the project is
 
@@ -52,7 +60,7 @@ Working end-to-end: config, models + initial migration, Fernet token crypto, the
 
 Also working: refresh tokens (typed access/refresh JWTs, `/auth/refresh`; stateless — no revocation list yet), `/accounts` and `/transactions` read routes (auth-scoped), and the APScheduler daily polling fallback for missed webhooks (in-process, `SYNC_POLL_INTERVAL_HOURS`, disabled when `APP_ENV=test`; assumes single-instance deployment).
 
-Still open (production hardening, not blocking frontend work): regenerate/verify the migration against real Postgres + `raw_payload` JSON→JSONB, Plaid production readiness (CA institution coverage §6.2, webhook URL on link-token creation), Item error-state handling / re-link flow, CORS middleware, logging config, deployment story, refresh-token revocation, and the frontend itself.
+Still open (production hardening): `raw_payload` JSON→JSONB, Plaid production readiness (CA institution coverage §6.2, webhook URL on link-token creation), Item error-state handling / re-link flow, logging config, cloud deployment, refresh-token revocation. Resolved since: migration verified on Postgres 16 (via Docker compose), CORS unnecessary (nginx/Vite proxy same-origin design), frontend built.
 
 ## UI philosophy
 
