@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 15
+    refresh_token_expire_days: int = 30
+
+    # Polling fallback (§5.2): daily sync of all active Items in case
+    # webhooks were missed. 0 disables the scheduler.
+    sync_poll_interval_hours: int = 24
 
     @property
     def plaid_country_codes_list(self) -> List[str]:

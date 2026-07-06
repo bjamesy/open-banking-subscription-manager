@@ -22,6 +22,44 @@ def test_register_login_flow(client) -> None:
     assert r.json()["access_token"]
 
 
+def test_refresh_flow(client) -> None:
+    client.post("/auth/register", json=CREDS)
+    pair = client.post("/auth/login", json=CREDS).json()
+    assert pair["refresh_token"]
+
+    r = client.post("/auth/refresh", json={"refresh_token": pair["refresh_token"]})
+    assert r.status_code == 200
+    new_pair = r.json()
+    assert new_pair["access_token"] and new_pair["refresh_token"]
+
+    # The refreshed access token works
+    r = client.get(
+        "/subscriptions",
+        headers={"Authorization": f"Bearer {new_pair['access_token']}"},
+    )
+    assert r.status_code == 200
+
+
+def test_token_types_not_interchangeable(client) -> None:
+    client.post("/auth/register", json=CREDS)
+    pair = client.post("/auth/login", json=CREDS).json()
+
+    # A refresh token must not work as a Bearer access token
+    r = client.get(
+        "/subscriptions",
+        headers={"Authorization": f"Bearer {pair['refresh_token']}"},
+    )
+    assert r.status_code == 401
+
+    # An access token must not be accepted by /auth/refresh
+    r = client.post("/auth/refresh", json={"refresh_token": pair["access_token"]})
+    assert r.status_code == 401
+
+    # Garbage refresh token rejected
+    r = client.post("/auth/refresh", json={"refresh_token": "garbage"})
+    assert r.status_code == 401
+
+
 def test_login_wrong_password(client) -> None:
     client.post("/auth/register", json=CREDS)
     r = client.post("/auth/login", json={**CREDS, "password": "wrong-password"})

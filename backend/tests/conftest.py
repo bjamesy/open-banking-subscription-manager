@@ -39,6 +39,9 @@ def client():
 
     app.dependency_overrides[get_db] = override_get_db
     try:
-        yield TestClient(app)
+        test_client = TestClient(app)
+        # Expose the sessionmaker so tests can seed data behind the API.
+        test_client.sessionmaker = TestingSession
+        yield test_client
     finally:
         app.dependency_overrides.clear()

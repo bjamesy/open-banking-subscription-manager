@@ -40,7 +40,9 @@ These are settled and should be treated as constraints:
 
 Working end-to-end: config, models + initial migration, Fernet token crypto, the full Plaid provider (link/exchange/sync/accounts), transaction sync/upsert with account auto-creation, **JWT auth** (register/login via `bcrypt` directly — deliberately not passlib, which is unmaintained and warns on bcrypt≥4.1 — all data routes require a Bearer token), the **two-phase detection engine** (heuristic interval analysis in `detection/engine.py`; Claude structured-output pass in `detection/ai.py`, a no-op without `ANTHROPIC_API_KEY`), and **verified Plaid webhooks** (ES256 JWT + body-hash check in `providers/plaid/webhook.py`; `PLAID_VERIFY_WEBHOOKS=false` for local testing only) that trigger background sync + detection.
 
-Still open: refresh tokens (access tokens only, 15 min), APScheduler polling fallback (webhook-driven sync only), `/accounts` and `/transactions` query routes, and the frontend.
+Also working: refresh tokens (typed access/refresh JWTs, `/auth/refresh`; stateless — no revocation list yet), `/accounts` and `/transactions` read routes (auth-scoped), and the APScheduler daily polling fallback for missed webhooks (in-process, `SYNC_POLL_INTERVAL_HOURS`, disabled when `APP_ENV=test`; assumes single-instance deployment).
+
+Still open (production hardening, not blocking frontend work): regenerate/verify the migration against real Postgres + `raw_payload` JSON→JSONB, Plaid production readiness (CA institution coverage §6.2, webhook URL on link-token creation), Item error-state handling / re-link flow, CORS middleware, logging config, deployment story, refresh-token revocation, and the frontend itself.
 
 ## UI philosophy
 
