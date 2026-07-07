@@ -37,4 +37,4 @@ https://plaid.com/docs/sandbox/test-credentials/
 - Frontend: see `frontend/README.md` (`npm run dev`, hot reload — preferred for
   UI iteration; the Docker frontend is a production build)
 
-Architecture: `docs/specs/architecture.md` · UI conventions: `docs/specs/ui.md`
+Architecture: `docs/specs/architecture.md` · UI conventions: `docs/specs/ui.md` · Remaining work: `docs/BACKLOG.md`

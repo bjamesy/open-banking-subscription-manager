@@ -60,7 +60,7 @@ Working end-to-end: config, models + initial migration, Fernet token crypto, the
 
 Also working: refresh tokens (typed access/refresh JWTs, `/auth/refresh`; stateless — no revocation list yet), `/accounts` and `/transactions` read routes (auth-scoped), and the APScheduler daily polling fallback for missed webhooks (in-process, `SYNC_POLL_INTERVAL_HOURS`, disabled when `APP_ENV=test`; assumes single-instance deployment).
 
-Still open (production hardening): `raw_payload` JSON→JSONB, Plaid production readiness (CA institution coverage §6.2, webhook URL on link-token creation), Item error-state handling / re-link flow, logging config, cloud deployment, refresh-token revocation. Resolved since: migration verified on Postgres 16 (via Docker compose), CORS unnecessary (nginx/Vite proxy same-origin design), frontend built.
+All remaining work is tracked in **`docs/BACKLOG.md`** (production hardening, detection-quality tuning, and parked scope decisions, each with pickup context). Consult it before proposing "what's next"; keep it updated when items land or new gaps surface.
 
 ## Verifying against Plaid sandbox
 
