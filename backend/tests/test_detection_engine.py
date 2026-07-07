@@ -110,6 +110,88 @@ def test_weekly_cadence(session: Session) -> None:
     assert sub is not None and sub.cadence == "weekly"
 
 
+def test_ai_rejection_removes_stale_detected_row(session: Session, monkeypatch) -> None:
+    """A heuristic candidate later rejected by the AI pass must not linger."""
+    import subtrack.config as config_module
+    from subtrack.detection.ai import Verdict
+
+    _add_txns(
+        session,
+        "CD DEPOSIT .INITIAL.",
+        "1000.00",
+        [date(2026, 1, 12), date(2026, 2, 12), date(2026, 3, 12)],
+    )
+
+    # First run: no API key -> heuristic row is written as 'detected'
+    run_detection(session, user_id=1)
+    session.commit()
+    assert session.scalar(select(DetectedSubscription)) is not None
+
+    # Second run: AI pass rejects the candidate
+    monkeypatch.setattr(
+        config_module.get_settings(), "anthropic_api_key", "test-key", raising=False
+    )
+    monkeypatch.setattr(
+        "subtrack.detection.ai.classify_candidates",
+        lambda candidates: {
+            c.merchant_normalized: Verdict(
+                merchant=c.merchant_normalized, is_recurring=False, confidence=0.9
+            )
+            for c in candidates
+        },
+    )
+    run_detection(session, user_id=1)
+    session.commit()
+
+    assert session.scalar(select(DetectedSubscription)) is None  # cleaned up
+
+
+def test_ai_rename_updates_existing_row(session: Session, monkeypatch) -> None:
+    """An AI merchant rename must update the existing row (keeping user
+    status), not create a duplicate under the clean name."""
+    import subtrack.config as config_module
+    from subtrack.detection.ai import Verdict
+
+    _add_txns(
+        session,
+        "NETFLIX.COM 123",
+        "15.49",
+        [date(2026, 1, 5), date(2026, 2, 5), date(2026, 3, 5)],
+    )
+    run_detection(session, user_id=1)
+    session.commit()
+
+    row = session.scalar(select(DetectedSubscription))
+    assert row.merchant_normalized == "netflix"
+    row.status = "dismissed"
+    session.commit()
+
+    monkeypatch.setattr(
+        config_module.get_settings(), "anthropic_api_key", "test-key", raising=False
+    )
+    monkeypatch.setattr(
+        "subtrack.detection.ai.classify_candidates",
+        lambda candidates: {
+            c.merchant_normalized: Verdict(
+                merchant=c.merchant_normalized,
+                is_recurring=True,
+                cadence="monthly",
+                confidence=0.95,
+                clean_merchant_name="Netflix",
+            )
+            for c in candidates
+        },
+    )
+    run_detection(session, user_id=1)
+    session.commit()
+
+    rows = session.scalars(select(DetectedSubscription)).all()
+    assert len(rows) == 1  # renamed in place, no duplicate
+    assert rows[0].merchant_normalized == "Netflix"
+    assert rows[0].status == "dismissed"  # user decision survives the rename
+    assert rows[0].detection_source == "ai"
+
+
 def test_rerun_preserves_user_status(session: Session) -> None:
     _add_txns(
         session,

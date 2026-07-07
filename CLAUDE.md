@@ -62,6 +62,10 @@ Also working: refresh tokens (typed access/refresh JWTs, `/auth/refresh`; statel
 
 Still open (production hardening): `raw_payload` JSON→JSONB, Plaid production readiness (CA institution coverage §6.2, webhook URL on link-token creation), Item error-state handling / re-link flow, logging config, cloud deployment, refresh-token revocation. Resolved since: migration verified on Postgres 16 (via Docker compose), CORS unnecessary (nginx/Vite proxy same-origin design), frontend built.
 
+## Verifying against Plaid sandbox
+
+Sandbox Link credentials: `user_good` / `pass_good`, skip the phone step ("Continue without phone number"); full table in the root README. The end-to-end pipeline (Link → exchange → sync → detection → UI) was verified 2026-07-06 against TD Canada Trust sandbox with `country_codes=[CA]`. With `ANTHROPIC_API_KEY` set, the Phase-2 AI pass filters non-subscription recurring charges (transfers, payroll) and cleans merchant names; without it, detection is heuristic-only. Trigger a manual re-sync + detection with: `docker compose exec backend python -c "from subtrack.ingestion.scheduler import poll_all_items; poll_all_items()"`.
+
 ## UI philosophy
 
 `docs/specs/ui.md` (user-authored) defines the UI conventions for the frontend when it gets built: data-first, desktop-first, information-dense operational UI (Linear/Stripe-dashboard style), consistent resource patterns, tables over cards, no decorative flourish. Follow it for any frontend work.

@@ -3,9 +3,14 @@ from __future__ import annotations
 import os
 
 # Deterministic settings for tests before subtrack.config is imported anywhere.
-os.environ.setdefault("APP_ENV", "test")
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_subtrack.db")
-os.environ.setdefault("PLAID_VERIFY_WEBHOOKS", "false")
+# Values are FORCED (not setdefault): pydantic-settings also reads backend/.env,
+# and a real ANTHROPIC_API_KEY there would make tests call the live API.
+os.environ["APP_ENV"] = "test"
+os.environ["DATABASE_URL"] = "sqlite:///./test_subtrack.db"
+os.environ["PLAID_VERIFY_WEBHOOKS"] = "false"
+os.environ["ANTHROPIC_API_KEY"] = ""
+os.environ["PLAID_CLIENT_ID"] = ""
+os.environ["PLAID_SECRET"] = ""
 
 import pytest
 from fastapi.testclient import TestClient

@@ -129,7 +129,7 @@ Confirmed with the user: Python, Plaid, Canadian market, prior-Plaid-code reuse,
 | # | Assumption | Needs confirmation |
 |---|-----------|--------------------|
 | 6.1 | The reusable Plaid integration is (or can be adapted to) Python and a current `plaid-python`. | Locate the prior project; confirm language and Plaid/SDK version before copying. |
-| 6.2 | Plaid covers the target Canadian institutions. Plaid's Canadian coverage has historically trailed its US coverage. | Verify sandbox + production institution coverage. Evaluate a Canadian-native aggregator (e.g. Flinks) as a fallback behind the `BankingProvider` ABC. |
+| 6.2 | **Sandbox-verified (2026-07-06):** Plaid sandbox with `country_codes=[CA]` lists RBC, Scotiabank, TD, BMO, CIBC, Tangerine, Desjardins, National Bank, Vancity, and ATB; full link → sync → detection pipeline ran against TD Canada Trust sandbox data (CAD). | Production institution coverage still needs verification when applying for Plaid production access. Flinks remains the fallback behind the `BankingProvider` ABC. |
 | 6.3 | Single-instance deployment (makes in-process APScheduler safe). | If multi-instance, move scheduling to an out-of-process worker (Celery + Redis) to avoid duplicate sync jobs. |
 | 6.4 | Auth is username/password + JWT (**implemented**; access tokens only). | Confirm whether Google/Apple OAuth and refresh tokens are in scope. |
 | 6.5 | The AI detection pass defaults to `claude-opus-4-8` (overridable via `ANTHROPIC_MODEL`). | Confirm the acceptable per-run API cost envelope; a cheaper model can be configured if needed. |

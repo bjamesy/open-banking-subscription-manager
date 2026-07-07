@@ -62,6 +62,9 @@ class Candidate:
     # (posted_at ISO, amount as str) history for the AI pass
     history: List[Tuple[str, str]] = field(default_factory=list)
     source: str = "heuristic"  # heuristic | ai
+    # Pre-AI-rename merchant key, so upserts match rows written under the
+    # original heuristic name (keeps user confirm/dismiss attached).
+    original_merchant: Optional[str] = None
 
 
 def _match_cadence(gap_days: float) -> Optional[Tuple[str, int, int]]:
@@ -183,6 +186,7 @@ def run_detection(session: Session, user_id: int) -> int:
             candidate.cadence = verdict.cadence or candidate.cadence
             candidate.confidence = verdict.confidence
             if verdict.clean_merchant_name:
+                candidate.original_merchant = candidate.merchant_normalized
                 candidate.merchant_normalized = verdict.clean_merchant_name
             candidate.source = "ai"
             kept.append(candidate)
@@ -192,15 +196,42 @@ def run_detection(session: Session, user_id: int) -> int:
     for candidate in candidates:
         _upsert_subscription(session, user_id, candidate)
         written += 1
+
+    # Cleanup: auto-detected rows the user never touched (status still
+    # 'detected') that are absent from this run's kept set are stale — the AI
+    # pass rejected them, the merchant was renamed by the AI pass, or the
+    # pattern no longer holds. User-confirmed/dismissed and manual rows are
+    # never removed.
+    kept_keys = {(c.merchant_normalized, c.cadence) for c in candidates} | {
+        (c.original_merchant, c.cadence)
+        for c in candidates
+        if c.original_merchant is not None
+    }
+    stale = session.scalars(
+        select(DetectedSubscription).where(
+            DetectedSubscription.user_id == user_id,
+            DetectedSubscription.status == "detected",
+            DetectedSubscription.detection_source != "manual",
+        )
+    )
+    for row in stale:
+        if (row.merchant_normalized, row.cadence) not in kept_keys:
+            session.delete(row)
+
     session.flush()
     return written
 
 
 def _upsert_subscription(session: Session, user_id: int, c: Candidate) -> None:
+    # Match by the (possibly AI-cleaned) name OR the original heuristic name,
+    # so an AI rename updates the existing row instead of duplicating it.
+    names = [c.merchant_normalized]
+    if c.original_merchant is not None:
+        names.append(c.original_merchant)
     existing = session.scalar(
         select(DetectedSubscription).where(
             DetectedSubscription.user_id == user_id,
-            DetectedSubscription.merchant_normalized == c.merchant_normalized,
+            DetectedSubscription.merchant_normalized.in_(names),
             DetectedSubscription.cadence == c.cadence,
         )
     )
@@ -221,8 +252,10 @@ def _upsert_subscription(session: Session, user_id: int, c: Candidate) -> None:
         )
     else:
         # Refresh data fields but preserve user-set confirmed/dismissed status.
+        existing.merchant_normalized = c.merchant_normalized
         existing.amount = c.amount
         existing.currency = c.currency
         existing.confidence_score = c.confidence
         existing.next_expected_charge = c.next_expected_charge
         existing.account_id = c.account_id
+        existing.detection_source = c.source
