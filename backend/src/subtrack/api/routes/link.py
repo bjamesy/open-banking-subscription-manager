@@ -75,8 +75,7 @@ def exchange_public_token(
     # Best-effort initial sync + detection so the dashboard has data
     # immediately. Plaid commonly returns PRODUCT_NOT_READY right after link;
     # the Item is already persisted, so a failure here must not fail the
-    # exchange — the SYNC_UPDATES_AVAILABLE webhook (or the scheduled poll)
-    # will sync later.
+    # exchange — the user can retry via POST /accounts/rescan.
     initial_sync = "ok"
     try:
         sync_item(db, item, provider)

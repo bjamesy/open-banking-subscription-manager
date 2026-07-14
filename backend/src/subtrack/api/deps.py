@@ -28,6 +28,13 @@ def get_banking_provider() -> BankingProvider:
     return get_provider()
 
 
+def get_session_factory():
+    """Session factory for background tasks, which outlive the request-scoped
+    `get_db` session. Its own dependency purely so tests can override it to
+    point at the test database (see test_routes_rescan.py)."""
+    return get_sessionmaker()
+
+
 def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
     db: Session = Depends(get_db),

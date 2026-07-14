@@ -39,9 +39,6 @@ class Settings(BaseSettings):
     detection_confidence_threshold: float = 0.7
     detection_min_occurrences: int = 2
 
-    # Webhooks (§5.2). Verification can be disabled only for local testing.
-    plaid_verify_webhooks: bool = True
-
     # Fernet key for encrypting Plaid access tokens at rest.
     encryption_key: str = ""
 
@@ -50,10 +47,6 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 30
-
-    # Polling fallback (§5.2): daily sync of all active Items in case
-    # webhooks were missed. 0 disables the scheduler.
-    sync_poll_interval_hours: int = 24
 
     @property
     def plaid_country_codes_list(self) -> List[str]:

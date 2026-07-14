@@ -7,7 +7,6 @@ import os
 # and a real ANTHROPIC_API_KEY there would make tests call the live API.
 os.environ["APP_ENV"] = "test"
 os.environ["DATABASE_URL"] = "sqlite:///./test_subtrack.db"
-os.environ["PLAID_VERIFY_WEBHOOKS"] = "false"
 os.environ["ANTHROPIC_API_KEY"] = ""
 os.environ["PLAID_CLIENT_ID"] = ""
 os.environ["PLAID_SECRET"] = ""

@@ -121,8 +121,9 @@ export default function Subscriptions() {
           <div className="empty">
             <p>No subscriptions detected yet.</p>
             <p className="muted">
-              <Link to="/accounts">Connect a bank account</Link> and detection will run
-              automatically, or add one manually above.
+              <Link to="/accounts">Connect a bank account</Link> to run your first scan
+              — re-scan anytime from Accounts to pick up new activity — or add one
+              manually above.
             </p>
           </div>
         ) : (

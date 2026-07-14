@@ -5,14 +5,19 @@ upsert transactions -> advance cursor (atomically) -> enqueue detection.
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
+from typing import Sequence, Tuple
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from subtrack.db.models import Account, Item, Transaction
+from subtrack.detection.engine import run_detection
 from subtrack.providers.base import BankingProvider, ProviderTransaction
 from subtrack.security import crypto
+
+logger = logging.getLogger(__name__)
 
 
 def sync_item(session: Session, item: Item, provider: BankingProvider) -> int:
@@ -76,6 +81,38 @@ def sync_item(session: Session, item: Item, provider: BankingProvider) -> int:
     item.last_synced_at = datetime.now(timezone.utc)
     session.commit()
     return touched
+
+
+def rescan_items(
+    session: Session, items: Sequence[Item], provider: BankingProvider
+) -> Tuple[int, int]:
+    """Sync each Item best-effort, then run detection once per affected user.
+
+    One failing Item (e.g. an expired access token) doesn't block the rest.
+    Returns (items_synced, items_failed).
+    """
+    synced = 0
+    failed = 0
+    user_ids = set()
+    for item in items:
+        try:
+            sync_item(session, item, provider)
+            user_ids.add(item.user_id)
+            synced += 1
+        except Exception:
+            session.rollback()
+            failed += 1
+            logger.exception("rescan sync failed for item %s", item.plaid_item_id)
+
+    for user_id in user_ids:
+        try:
+            run_detection(session, user_id)
+            session.commit()
+        except Exception:
+            session.rollback()
+            logger.exception("rescan detection failed for user %s", user_id)
+
+    return synced, failed
 
 
 def _upsert_transaction(

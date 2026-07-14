@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
+import { AxiosError } from 'axios'
 import ConnectBank from '../components/ConnectBank'
-import { listAccounts, type Account } from '../api/client'
+import { getRescanJob, listAccounts, startRescan, type Account, type RescanJob } from '../api/client'
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 export default function Accounts() {
   const [accounts, setAccounts] = useState<Account[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [rescanning, setRescanning] = useState(false)
+  const [rescanMsg, setRescanMsg] = useState<string | null>(null)
 
   const reload = useCallback(() => {
     listAccounts()
@@ -14,13 +21,56 @@ export default function Accounts() {
 
   useEffect(reload, [reload])
 
+  async function rescan() {
+    setRescanning(true)
+    setRescanMsg(null)
+    setError(null)
+    try {
+      let job: RescanJob = await startRescan()
+      while (job.status === 'pending' || job.status === 'running') {
+        await sleep(1000)
+        job = await getRescanJob(job.id)
+      }
+      if (job.status === 'done') {
+        const synced = job.items_synced ?? 0
+        const failed = job.items_failed ?? 0
+        setRescanMsg(
+          failed > 0
+            ? `Synced ${synced} of ${synced + failed} accounts — some failed.`
+            : `Synced ${synced} account${synced === 1 ? '' : 's'}.`,
+        )
+        reload()
+      } else {
+        setError(job.error ?? 'Re-scan failed.')
+      }
+    } catch (err) {
+      if (err instanceof AxiosError && err.response?.status === 409) {
+        setError('A re-scan is already in progress.')
+      } else {
+        setError('Re-scan failed.')
+      }
+    } finally {
+      setRescanning(false)
+    }
+  }
+
   return (
     <>
       <div className="page-header">
         <h1>Accounts</h1>
-        <ConnectBank onConnected={reload} />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            className="ghost"
+            onClick={rescan}
+            disabled={rescanning || !accounts?.length}
+          >
+            {rescanning ? 'Re-scanning…' : 'Re-scan'}
+          </button>
+          <ConnectBank onConnected={reload} />
+        </div>
       </div>
 
+      {rescanMsg && <p className="muted">{rescanMsg}</p>}
       {error && <p className="error">{error}</p>}
 
       <div className="card">
@@ -31,7 +81,8 @@ export default function Accounts() {
             <p>No bank accounts connected.</p>
             <p className="muted">
               Use “Connect bank account” to link your bank via Plaid. Transactions
-              import automatically and subscription detection runs on every sync.
+              import and subscription detection runs once, right away — use
+              “Re-scan” anytime afterward to pick up new activity.
             </p>
           </div>
         ) : (

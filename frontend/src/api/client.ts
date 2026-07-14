@@ -164,3 +164,21 @@ export async function createLinkToken(): Promise<string> {
 export async function exchangePublicToken(publicToken: string): Promise<void> {
   await api.post('/link/exchange', { public_token: publicToken })
 }
+
+export type RescanJob = {
+  id: number
+  status: 'pending' | 'running' | 'done' | 'failed'
+  items_synced: number | null
+  items_failed: number | null
+  error: string | null
+}
+
+export async function startRescan(): Promise<RescanJob> {
+  const r = await api.post('/accounts/rescan')
+  return r.data
+}
+
+export async function getRescanJob(id: number): Promise<RescanJob> {
+  const r = await api.get(`/accounts/rescan/${id}`)
+  return r.data
+}

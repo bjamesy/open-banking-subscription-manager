@@ -117,3 +117,24 @@ class DetectedSubscription(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class RescanJob(Base):
+    """Tracks a manual re-scan run as an in-process background task
+    (architecture §5.2) so the triggering request can return immediately and
+    the frontend can poll for completion."""
+
+    __tablename__ = "rescan_jobs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    # pending | running | done | failed
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    items_synced: Mapped[Optional[int]] = mapped_column()
+    items_failed: Mapped[Optional[int]] = mapped_column()
+    error: Mapped[Optional[str]] = mapped_column(String(512))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))

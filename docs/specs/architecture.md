@@ -18,13 +18,13 @@ This document covers system design only. Product scope, roadmap, data-model DDL,
 
 ### 2.1 Plaid Integration Layer
 
-**Responsibility:** Own the complete Plaid API surface — Link token creation, public-to-access-token exchange, transaction sync, and webhook receipt/verification. Nothing outside this layer calls the Plaid SDK directly.
+**Responsibility:** Own the complete Plaid API surface — Link token creation, public-to-access-token exchange, and transaction sync. Nothing outside this layer calls the Plaid SDK directly.
 
 **Library:** `plaid-python` (official SDK). Plaid's API versioning is coupled to SDK releases, and the SDK handles typed request/response objects — preferable to raw HTTP calls.
 
-**Reuse:** A Plaid integration already exists in a prior project and is intended for reuse (confirmed). Before copying, audit it for the Plaid API version and `plaid-python` version it targets, and for whether it was written in Python — see §6.1.
+**Reuse:** adapted from a prior project's Plaid integration — see §6.1 (resolved).
 
-**Key operations:** `link_token_create`, `item_public_token_exchange`, `transactions_sync` (cursor-based), and inbound webhook signature verification (`Plaid-Verification` JWT header).
+**Key operations:** `link_token_create`, `item_public_token_exchange`, `transactions_sync` (cursor-based). No inbound webhook handling — see §5.2.
 
 **Abstraction boundary:** A `BankingProvider` abstract base class (`abc.ABC`) exposes `create_link_token`, `exchange_public_token`, `sync_transactions`, and `get_accounts`. The rest of the app depends on this ABC, not the Plaid class. This is the single seam where swapping or adding an aggregator (relevant given Canadian coverage uncertainty — see §6.2) requires code changes. Webhook payload parsing is provider-specific by nature and stays inside the Plaid module, not on the ABC.
 
@@ -39,7 +39,7 @@ This document covers system design only. Product scope, roadmap, data-model DDL,
 4. Persist the new `cursor` and `last_synced_at` **in the same DB transaction** as the writes, so a failure re-syncs cleanly from the last good cursor.
 5. Enqueue a detection run for affected accounts.
 
-**Scheduler:** `APScheduler` (in-process) for the polling fallback — avoids standing up Celery/Redis for the MVP. This assumes single-instance deployment (see §6.3); multi-instance would require moving the scheduler out-of-process to prevent duplicate jobs.
+**Trigger model:** No scheduler, no webhooks. Sync runs once at link time and otherwise only on explicit user action (`POST /accounts/rescan`) — see §5.2 for the rationale.
 
 ### 2.3 Persistence Layer
 
@@ -71,7 +71,7 @@ This document covers system design only. Product scope, roadmap, data-model DDL,
 
 **Config:** `pydantic-settings` — a `Settings` class reads DB URL, Plaid credentials, encryption key, and JWT secret from environment variables, validated at startup.
 
-**Route groups:** `/auth`, `/link`, `/accounts`, `/transactions`, `/subscriptions`, `/webhooks/plaid` (signature-verified).
+**Route groups:** `/auth`, `/link`, `/accounts` (including `POST /accounts/rescan`), `/transactions`, `/subscriptions`.
 
 ---
 
@@ -79,7 +79,7 @@ This document covers system design only. Product scope, roadmap, data-model DDL,
 
 **3.1 Bank connection:** Browser requests a Link token → API calls `link_token_create` → Plaid Link runs in the browser → returns a `public_token` → API exchanges it for `access_token` + `item_id` → API stores an encrypted Item record → triggers initial sync → returns accounts.
 
-**3.2 Transaction sync (incremental, cursor-based):** Triggered by a Plaid `TRANSACTIONS_SYNC_UPDATES_AVAILABLE` webhook (primary), a daily APScheduler poll (fallback), or an on-demand call after connection. The sync worker decrypts the access token, loops `transactions_sync` until `has_more` is false, upserts changes, commits the cursor atomically, and enqueues detection.
+**3.2 Transaction sync (incremental, cursor-based):** One-shot by default — triggered once right after `/link/exchange`, and otherwise only when the user calls `POST /accounts/rescan`. No background polling or webhook listener. The sync worker decrypts the access token, loops `transactions_sync` until `has_more` is false, upserts changes, commits the cursor atomically, and runs detection for the affected user(s).
 
 **3.3 Detection run:** Query normalized transactions → heuristic pass emits candidates → low-confidence candidates batched to Claude → merge results → upsert `DetectedSubscription` records, **preserving any user-set `confirmed`/`dismissed` status** rather than overwriting it.
 
@@ -103,11 +103,13 @@ This document covers system design only. Product scope, roadmap, data-model DDL,
 
 **5.1 Provider abstraction.** The `BankingProvider` ABC costs a thin indirection layer; the payoff is that adding or swapping an aggregator touches only a new implementation plus a factory lookup — relevant because Plaid's Canadian coverage is uncertain (§6.2).
 
-**5.2 Sync: webhook-primary, polling fallback.** Webhooks are lower-latency and lower-cost but can be missed (downtime, delivery failure), so the daily poll is a correctness guarantee, not the primary path. Cursor-based `/transactions/sync` is used over date-range `/transactions/get` because it is idempotent and handles Plaid's modify/remove mutation model.
+**5.2 Sync: one-shot by default, manual re-scan on demand.** Originally designed as webhook-primary with a daily polling fallback (both required standing infra: webhook signature verification, an in-process — and later out-of-process — scheduler). Revisited: most users connect a bank once to see what they're paying for, not to run an ongoing monitoring service. The app now syncs once at link time and otherwise only when the user explicitly calls `POST /accounts/rescan` — no background polling, no webhook listener. This removes the single-instance deployment risk that motivated §6.3, and means the app never touches bank data without the user asking, which is a materially better position for §6.8 (PIPEDA / Law 25). Cursor-based `/transactions/sync` is still used over date-range `/transactions/get` because it is idempotent and handles Plaid's modify/remove mutation model — that choice is independent of what triggers a sync.
+
+The re-scan itself doesn't run inline in the HTTP request either — it's a third-party-dependent pipeline (Plaid, then Claude), so `POST /accounts/rescan` creates a `RescanJob` row and hands the work to FastAPI's in-process `BackgroundTasks`, returning `202` immediately; the frontend polls `GET /accounts/rescan/{job_id}` until it's `done`/`failed`. This is deliberately *not* a task queue (Celery/Redis) — that's the same kind of standing infrastructure the scheduler removal (above) was trying to avoid, for what's now an occasional, user-initiated action. Accepted limitation: `BackgroundTasks` is unpersisted, so a server restart mid-job leaves that job's row `"running"` forever with no automatic recovery — tracked in `docs/BACKLOG.md`, not fixed, since it's rare and low-stakes.
 
 **5.3 Sync vs async Python.** Synchronous handlers + `psycopg2` for the MVP (simpler to debug); `asyncpg` + async SQLAlchemy is a defined upgrade if I/O contention appears — no framework change needed.
 
-**5.4 Detection runs as a post-sync batch**, not per-transaction: the heuristic needs a window of transactions, AI calls batch better, and daily freshness is adequate for a subscription tracker. On-demand re-run is supported for UI-driven re-scoring.
+**5.4 Detection runs as a post-sync batch**, not per-transaction: the heuristic needs a window of transactions and AI calls batch better. It runs once at link time and again on each manual re-scan (§5.2) — there is no scheduled re-run.
 
 **5.5 Secret & token handling.**
 
@@ -128,9 +130,9 @@ Confirmed with the user: Python, Plaid, Canadian market, prior-Plaid-code reuse,
 
 | # | Assumption | Needs confirmation |
 |---|-----------|--------------------|
-| 6.1 | The reusable Plaid integration is (or can be adapted to) Python and a current `plaid-python`. | Locate the prior project; confirm language and Plaid/SDK version before copying. |
+| 6.1 | **Resolved:** the Plaid integration is Python on a current `plaid-python`, implemented in `providers/plaid/provider.py` and sandbox-verified end-to-end. | — |
 | 6.2 | **Sandbox-verified (2026-07-06):** Plaid sandbox with `country_codes=[CA]` lists RBC, Scotiabank, TD, BMO, CIBC, Tangerine, Desjardins, National Bank, Vancity, and ATB; full link → sync → detection pipeline ran against TD Canada Trust sandbox data (CAD). | Production institution coverage still needs verification when applying for Plaid production access. Flinks remains the fallback behind the `BankingProvider` ABC. |
-| 6.3 | Single-instance deployment (makes in-process APScheduler safe). | If multi-instance, move scheduling to an out-of-process worker (Celery + Redis) to avoid duplicate sync jobs. |
+| 6.3 | **Resolved:** no scheduler exists — sync is one-shot at link time plus manual re-scan (§5.2). Single-instance deployment is no longer a correctness requirement for sync. | — |
 | 6.4 | Auth is username/password + JWT (**implemented**; access tokens only). | Confirm whether Google/Apple OAuth and refresh tokens are in scope. |
 | 6.5 | The AI detection pass defaults to `claude-opus-4-8` (overridable via `ANTHROPIC_MODEL`). | Confirm the acceptable per-run API cost envelope; a cheaper model can be configured if needed. |
 | 6.6 | **Resolved:** the frontend is a Vite + React + TypeScript SPA in `frontend/` (monorepo), consuming the JSON API via an `/api` proxy. Stack mirrors the prior cresidential project. | — |
