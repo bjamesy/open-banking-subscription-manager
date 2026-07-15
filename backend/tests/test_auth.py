@@ -83,6 +83,75 @@ def test_logout_revokes_refresh_token(client) -> None:
     assert r.status_code == 200
 
 
+def _fake_google_payload(email: str) -> dict:
+    return {"email": email, "email_verified": True, "sub": "google-sub-123"}
+
+
+def test_google_login_creates_user(client, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "subtrack.security.auth.verify_google_id_token",
+        lambda token: _fake_google_payload("newgoogle@example.com"),
+    )
+    r = client.post("/auth/google", json={"id_token": "whatever"})
+    assert r.status_code == 200
+    pair = r.json()
+    assert pair["access_token"] and pair["refresh_token"]
+
+    # Issued tokens work like any other pair.
+    r = client.get(
+        "/subscriptions", headers={"Authorization": f"Bearer {pair['access_token']}"}
+    )
+    assert r.status_code == 200
+
+
+def test_google_login_reuses_existing_google_user(client, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "subtrack.security.auth.verify_google_id_token",
+        lambda token: _fake_google_payload("returning@example.com"),
+    )
+    first = client.post("/auth/google", json={"id_token": "t1"}).json()
+    second = client.post("/auth/google", json={"id_token": "t2"}).json()
+
+    # Same user both times: revoking via the first session's token_version
+    # affects the second, since they share one account.
+    r = client.post(
+        "/auth/logout", headers={"Authorization": f"Bearer {first['access_token']}"}
+    )
+    assert r.status_code == 204
+    r = client.post("/auth/refresh", json={"refresh_token": second["refresh_token"]})
+    assert r.status_code == 401
+
+
+def test_google_login_rejects_existing_password_account(client, monkeypatch) -> None:
+    client.post("/auth/register", json={**CREDS, "email": "shared@example.com"})
+    monkeypatch.setattr(
+        "subtrack.security.auth.verify_google_id_token",
+        lambda token: _fake_google_payload("shared@example.com"),
+    )
+    r = client.post("/auth/google", json={"id_token": "whatever"})
+    assert r.status_code == 409
+
+
+def test_google_login_rejects_unverified_email(client, monkeypatch) -> None:
+    # verify_google_id_token itself raises ValueError for an unverified
+    # email (security/auth.py) — the route never sees an unverified payload.
+    def raise_unverified(token: str) -> dict:
+        raise ValueError("Google email not verified")
+
+    monkeypatch.setattr("subtrack.security.auth.verify_google_id_token", raise_unverified)
+    r = client.post("/auth/google", json={"id_token": "whatever"})
+    assert r.status_code == 401
+
+
+def test_google_login_rejects_invalid_token(client, monkeypatch) -> None:
+    def raise_invalid(token: str) -> dict:
+        raise ValueError("invalid Google ID token")
+
+    monkeypatch.setattr("subtrack.security.auth.verify_google_id_token", raise_invalid)
+    r = client.post("/auth/google", json={"id_token": "garbage"})
+    assert r.status_code == 401
+
+
 def test_login_wrong_password(client) -> None:
     client.post("/auth/register", json=CREDS)
     r = client.post("/auth/login", json={**CREDS, "password": "wrong-password"})

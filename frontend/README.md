@@ -9,11 +9,14 @@ desktop-first, sidebar shell, tables over cards.
 ```bash
 cd frontend
 npm install
+cp .env.example .env   # optional: set VITE_GOOGLE_CLIENT_ID to show the Google button
 npm run dev        # http://localhost:5173 — proxies /api/* to localhost:8000
 ```
 
 Run the backend alongside (`uvicorn subtrack.main:app --reload` in `backend/`).
-Set `BACKEND_URL` to proxy elsewhere.
+Set `BACKEND_URL` to proxy elsewhere. `VITE_GOOGLE_CLIENT_ID` must match the
+backend's `GOOGLE_CLIENT_ID` (`backend/.env`) — the frontend only initiates
+sign-in, the backend does the actual verification.
 
 ## Build
 

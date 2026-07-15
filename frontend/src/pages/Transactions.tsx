@@ -104,31 +104,33 @@ export default function Transactions() {
           </div>
         ) : (
           <>
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Merchant</th>
-                  <th>Account</th>
-                  <th className="num">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {page.items.map((t) => (
-                  <tr key={t.id}>
-                    <td>{t.posted_at}</td>
-                    <td>{t.merchant_raw}</td>
-                    <td className="muted">{accountName(t.account_id)}</td>
-                    <td className="num">
-                      {t.amount.toLocaleString(undefined, {
-                        style: 'currency',
-                        currency: t.currency ?? 'CAD',
-                      })}
-                    </td>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Merchant</th>
+                    <th>Account</th>
+                    <th className="num">Amount</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {page.items.map((t) => (
+                    <tr key={t.id}>
+                      <td>{t.posted_at}</td>
+                      <td>{t.merchant_raw}</td>
+                      <td className="muted">{accountName(t.account_id)}</td>
+                      <td className="num">
+                        {t.amount.toLocaleString(undefined, {
+                          style: 'currency',
+                          currency: t.currency ?? 'CAD',
+                        })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <div className="pagination">
               <button
                 className="ghost"

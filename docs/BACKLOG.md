@@ -36,8 +36,10 @@ matters.
 
 ## Parked (explicit scope decisions, revisit when relevant)
 
-- **Google/Apple OAuth** (§6.4) — email/password + JWT shipped; social login
-  would add `authlib` and provider config.
+- **Apple OAuth** (§6.4) — Google Sign-In shipped (`POST /auth/google`,
+  ID-token verification via `google-auth`, no `authlib`/redirect flow
+  needed); Apple isn't requested yet and would need Sign in with Apple's
+  own (JWT-based, client-secret-as-a-signed-JWT) flow.
 - **Privacy compliance** (§6.8, PIPEDA / Quebec Law 25) — required before
   storing real Canadian user financial data: consent logging, data deletion
   endpoint (delete user → Items/transactions/subscriptions + Plaid

@@ -120,6 +120,11 @@ export async function login(email: string, password: string): Promise<void> {
   setTokens(r.data.access_token, r.data.refresh_token)
 }
 
+export async function loginWithGoogle(idToken: string): Promise<void> {
+  const r = await api.post('/auth/google', { id_token: idToken })
+  setTokens(r.data.access_token, r.data.refresh_token)
+}
+
 export async function logout(): Promise<void> {
   // Best-effort: a failed revocation shouldn't trap the user in a logged-in
   // UI state — local tokens get cleared by the caller regardless.

@@ -69,7 +69,7 @@ This document covers system design only. Product scope, roadmap, data-model DDL,
 
 **Framework:** `FastAPI` — native async (aligns with async DB drivers), first-class Pydantic validation, auto-generated OpenAPI schema for frontend work, low overhead for a single-service MVP.
 
-**Auth:** `python-jose` (JWT) + `bcrypt` used directly (passlib was dropped: unmaintained, warns on bcrypt≥4.1). Access + refresh tokens implemented, the latter revocable via `token_version` (§5.5); social login still open (§6.4).
+**Auth:** `python-jose` (JWT) + `bcrypt` used directly (passlib was dropped: unmaintained, warns on bcrypt≥4.1). Access + refresh tokens implemented, the latter revocable via `token_version` (§5.5); Google Sign-In implemented (§6.4), Apple still open.
 
 **Config:** `pydantic-settings` — a `Settings` class reads DB URL, Plaid credentials, encryption key, and JWT secret from environment variables, validated at startup.
 
@@ -137,7 +137,7 @@ Confirmed with the user: Python, Plaid, Canadian market, prior-Plaid-code reuse,
 | 6.1 | **Resolved:** the Plaid integration is Python on a current `plaid-python`, implemented in `providers/plaid/provider.py` and sandbox-verified end-to-end. | — |
 | 6.2 | **Sandbox-verified (2026-07-06):** Plaid sandbox with `country_codes=[CA]` lists RBC, Scotiabank, TD, BMO, CIBC, Tangerine, Desjardins, National Bank, Vancity, and ATB; full link → sync → detection pipeline ran against TD Canada Trust sandbox data (CAD). | Production institution coverage still needs verification when applying for Plaid production access. Flinks remains the fallback behind the `BankingProvider` ABC. |
 | 6.3 | **Resolved:** no scheduler exists — sync is one-shot at link time plus manual re-scan (§5.2). Single-instance deployment is no longer a correctness requirement for sync. | — |
-| 6.4 | Auth is username/password + JWT, with revocable refresh tokens (**implemented** — `token_version`, §5.5). | Confirm whether Google/Apple OAuth is in scope. |
+| 6.4 | Auth is username/password + JWT, with revocable refresh tokens (**implemented** — `token_version`, §5.5) and Google Sign-In (**implemented** — `POST /auth/google` verifies a Google Identity Services ID token via `google-auth` and issues the same token pair as password login; an existing password account with the same email is never silently reused — `409`, since registration has no email verification step to make that safe). | Apple OAuth not requested/scoped. |
 | 6.5 | The AI detection pass defaults to `claude-opus-4-8` (overridable via `ANTHROPIC_MODEL`). | Confirm the acceptable per-run API cost envelope; a cheaper model can be configured if needed. |
 | 6.6 | **Resolved:** the frontend is a Vite + React + TypeScript SPA in `frontend/` (monorepo), consuming the JSON API via an `/api` proxy. Stack mirrors the prior cresidential project. | — |
 | 6.7 | **Resolved:** `raw_payload` (full Plaid object) is retained as JSONB on Postgres (`JSON().with_variant(JSONB(), "postgresql")`, plain JSON under sqlite dev) for re-detection and debugging. | Confirm whether storage cost warrants pruning it. |

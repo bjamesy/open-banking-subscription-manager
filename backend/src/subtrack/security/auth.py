@@ -15,6 +15,11 @@ bumping it (on logout) revokes every outstanding refresh token for that user.
 Access tokens are unversioned and stay valid until their short natural expiry
 even after logout; that window is the accepted tradeoff for not checking a DB
 column on every request.
+
+Google Sign-In (`verify_google_id_token`) verifies a client-obtained ID token
+against Google's public keys rather than issuing our own — /auth/google then
+mints the same access/refresh pair as password login, so token_version
+revocation applies uniformly regardless of how a session started.
 """
 from __future__ import annotations
 
@@ -91,3 +96,25 @@ def decode_refresh_token(token: str) -> Tuple[int, int]:
         return int(payload["sub"]), int(payload["ver"])
     except (KeyError, ValueError) as exc:
         raise ValueError("invalid token") from exc
+
+
+def verify_google_id_token(token: str) -> dict:
+    """Verify a Google Identity Services credential and return its claims.
+
+    Signature-checked against Google's public keys (via google-auth), with
+    `aud` required to match GOOGLE_CLIENT_ID. Raises ValueError on any
+    failure, including an unverified email — never raises anything else.
+    """
+    from google.auth.transport import requests as google_requests
+    from google.oauth2 import id_token as google_id_token
+
+    settings = get_settings()
+    try:
+        payload = google_id_token.verify_oauth2_token(
+            token, google_requests.Request(), settings.google_client_id
+        )
+    except Exception as exc:
+        raise ValueError("invalid Google ID token") from exc
+    if not payload.get("email_verified"):
+        raise ValueError("Google email not verified")
+    return payload

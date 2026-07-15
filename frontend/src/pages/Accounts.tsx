@@ -10,8 +10,9 @@ function sleep(ms: number): Promise<void> {
 export default function Accounts() {
   const [accounts, setAccounts] = useState<Account[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [rescanning, setRescanning] = useState(false)
+  const [rescanStatus, setRescanStatus] = useState<'pending' | 'running' | null>(null)
   const [rescanMsg, setRescanMsg] = useState<string | null>(null)
+  const rescanning = rescanStatus !== null
 
   const reload = useCallback(() => {
     listAccounts()
@@ -22,12 +23,13 @@ export default function Accounts() {
   useEffect(reload, [reload])
 
   async function rescan() {
-    setRescanning(true)
+    setRescanStatus('pending')
     setRescanMsg(null)
     setError(null)
     try {
       let job: RescanJob = await startRescan()
       while (job.status === 'pending' || job.status === 'running') {
+        setRescanStatus(job.status)
         await sleep(1000)
         job = await getRescanJob(job.id)
       }
@@ -50,7 +52,7 @@ export default function Accounts() {
         setError('Re-scan failed.')
       }
     } finally {
-      setRescanning(false)
+      setRescanStatus(null)
     }
   }
 
@@ -70,7 +72,13 @@ export default function Accounts() {
         </div>
       </div>
 
-      {rescanMsg && <p className="muted">{rescanMsg}</p>}
+      {rescanning && (
+        <div className="status-row">
+          <span className="spinner" />
+          {rescanStatus === 'running' ? 'Syncing accounts…' : 'Starting re-scan…'}
+        </div>
+      )}
+      {rescanMsg && <div className="status-row ok">✓ {rescanMsg}</div>}
       {error && <p className="error">{error}</p>}
 
       <div className="card">
@@ -86,51 +94,53 @@ export default function Accounts() {
             </p>
           </div>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Account</th>
-                <th>Institution</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th>Last synced</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {accounts.map((a) => (
-                <tr key={a.id}>
-                  <td>
-                    {a.name}
-                    {a.mask && <span className="muted"> ····{a.mask}</span>}
-                  </td>
-                  <td>{a.institution_name ?? '—'}</td>
-                  <td className="muted">
-                    {[a.type, a.subtype].filter(Boolean).join(' / ') || '—'}
-                  </td>
-                  <td>
-                    <span
-                      className={`badge ${a.item_status === 'active' ? 'confirmed' : ''}`}
-                      style={a.item_status !== 'active' ? { color: 'var(--danger)', borderColor: '#fecaca' } : undefined}
-                    >
-                      {a.item_status}
-                    </span>
-                    {a.error && <div className="muted" style={{ fontSize: 12 }}>{a.error}</div>}
-                  </td>
-                  <td className="muted">
-                    {a.last_synced_at
-                      ? new Date(a.last_synced_at).toLocaleString()
-                      : 'never'}
-                  </td>
-                  <td className="num">
-                    {a.item_status !== 'active' && (
-                      <ConnectBank itemId={a.item_id} onConnected={() => { reload(); rescan() }} />
-                    )}
-                  </td>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Account</th>
+                  <th>Institution</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Last synced</th>
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {accounts.map((a) => (
+                  <tr key={a.id}>
+                    <td>
+                      {a.name}
+                      {a.mask && <span className="muted"> ····{a.mask}</span>}
+                    </td>
+                    <td>{a.institution_name ?? '—'}</td>
+                    <td className="muted">
+                      {[a.type, a.subtype].filter(Boolean).join(' / ') || '—'}
+                    </td>
+                    <td>
+                      <span
+                        className={`badge ${a.item_status === 'active' ? 'confirmed' : ''}`}
+                        style={a.item_status !== 'active' ? { color: 'var(--danger)', borderColor: '#fecaca' } : undefined}
+                      >
+                        {a.item_status}
+                      </span>
+                      {a.error && <div className="muted" style={{ fontSize: 12 }}>{a.error}</div>}
+                    </td>
+                    <td className="muted">
+                      {a.last_synced_at
+                        ? new Date(a.last_synced_at).toLocaleString()
+                        : 'never'}
+                    </td>
+                    <td className="num">
+                      {a.item_status !== 'active' && (
+                        <ConnectBank itemId={a.item_id} onConnected={() => { reload(); rescan() }} />
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </>

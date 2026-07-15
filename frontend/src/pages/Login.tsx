@@ -1,6 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { login, register } from '../api/client'
+import { login, loginWithGoogle, register } from '../api/client'
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
+
+function errorDetail(err: unknown, fallback: string): string {
+  const detail = (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
+  return typeof detail === 'string' ? detail : fallback
+}
 
 export default function Login() {
   const [mode, setMode] = useState<'login' | 'register'>('login')
@@ -9,6 +16,7 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const navigate = useNavigate()
+  const googleButtonRef = useRef<HTMLDivElement>(null)
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -19,13 +27,54 @@ export default function Login() {
       await login(email, password)
       navigate('/subscriptions')
     } catch (err: unknown) {
-      const detail =
-        (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
-      setError(typeof detail === 'string' ? detail : 'Something went wrong — try again.')
+      setError(errorDetail(err, 'Something went wrong — try again.'))
     } finally {
       setBusy(false)
     }
   }
+
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return
+
+    let cancelled = false
+    function init() {
+      if (cancelled) return
+      if (!window.google || !googleButtonRef.current) {
+        setTimeout(init, 100)
+        return
+      }
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID!,
+        callback: async (response) => {
+          setError(null)
+          setBusy(true)
+          try {
+            await loginWithGoogle(response.credential)
+            navigate('/subscriptions')
+          } catch (err: unknown) {
+            setError(errorDetail(err, 'Google sign-in failed.'))
+          } finally {
+            setBusy(false)
+          }
+        },
+      })
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: 'outline',
+        size: 'large',
+        shape: 'rectangular',
+        text: 'continue_with',
+        // Google draws the button at exactly this many pixels — a hardcoded
+        // value drifts from the card's actual content width (340px card -
+        // 28px padding each side = 284px) and overflows the card. Measure
+        // the container instead of guessing.
+        width: googleButtonRef.current.offsetWidth,
+      })
+    }
+    init()
+    return () => {
+      cancelled = true
+    }
+  }, [navigate])
 
   return (
     <div className="login-wrap">
@@ -67,6 +116,12 @@ export default function Login() {
             {busy ? 'Working…' : mode === 'login' ? 'Sign in' : 'Create account'}
           </button>
         </form>
+        {GOOGLE_CLIENT_ID && (
+          <>
+            <p className="divider">or</p>
+            <div ref={googleButtonRef} />
+          </>
+        )}
         <p className="switch">
           {mode === 'login' ? (
             <>

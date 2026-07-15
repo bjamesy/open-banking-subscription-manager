@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 30
 
+    # Google Sign-In (§6.4). Client ID is the expected `aud` when verifying
+    # ID tokens in security/auth.py; no client secret is needed for this flow.
+    google_client_id: str = ""
+
     @property
     def plaid_country_codes_list(self) -> List[str]:
         return [c.strip() for c in self.plaid_country_codes.split(",") if c.strip()]

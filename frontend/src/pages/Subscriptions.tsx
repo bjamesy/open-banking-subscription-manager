@@ -127,53 +127,55 @@ export default function Subscriptions() {
             </p>
           </div>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Merchant</th>
-                <th className="num">Amount</th>
-                <th>Cadence</th>
-                <th>Next charge</th>
-                <th>Status</th>
-                <th>Source</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {subs.map((s) => (
-                <tr key={s.id}>
-                  <td style={{ textTransform: 'capitalize' }}>{s.merchant_normalized}</td>
-                  <td className="num">{money(s.amount, s.currency)}</td>
-                  <td>{s.cadence ?? '—'}</td>
-                  <td>{s.next_expected_charge ?? '—'}</td>
-                  <td>
-                    <span className={`badge ${s.status}`}>{s.status}</span>
-                  </td>
-                  <td className="muted">
-                    {s.detection_source}
-                    {s.detection_source === 'heuristic' && s.confidence_score != null
-                      ? ` · ${Math.round(s.confidence_score * 100)}%`
-                      : ''}
-                  </td>
-                  <td className="num">
-                    {s.status === 'detected' && (
-                      <button className="subtle" onClick={() => setStatus(s.id, 'confirmed')}>
-                        Confirm
-                      </button>
-                    )}
-                    {s.status !== 'dismissed' && (
-                      <button
-                        className="subtle danger"
-                        onClick={() => setStatus(s.id, 'dismissed')}
-                      >
-                        Dismiss
-                      </button>
-                    )}
-                  </td>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Merchant</th>
+                  <th className="num">Amount</th>
+                  <th>Cadence</th>
+                  <th>Next charge</th>
+                  <th>Status</th>
+                  <th>Source</th>
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {subs.map((s) => (
+                  <tr key={s.id}>
+                    <td style={{ textTransform: 'capitalize' }}>{s.merchant_normalized}</td>
+                    <td className="num">{money(s.amount, s.currency)}</td>
+                    <td>{s.cadence ?? '—'}</td>
+                    <td>{s.next_expected_charge ?? '—'}</td>
+                    <td>
+                      <span className={`badge ${s.status}`}>{s.status}</span>
+                    </td>
+                    <td className="muted">
+                      {s.detection_source}
+                      {s.detection_source === 'heuristic' && s.confidence_score != null
+                        ? ` · ${Math.round(s.confidence_score * 100)}%`
+                        : ''}
+                    </td>
+                    <td className="num">
+                      {s.status === 'detected' && (
+                        <button className="subtle" onClick={() => setStatus(s.id, 'confirmed')}>
+                          Confirm
+                        </button>
+                      )}
+                      {s.status !== 'dismissed' && (
+                        <button
+                          className="subtle danger"
+                          onClick={() => setStatus(s.id, 'dismissed')}
+                        >
+                          Dismiss
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </>

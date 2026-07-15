@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { clearTokens, logout as logoutRequest } from '../api/client'
 
 export default function Layout() {
   const navigate = useNavigate()
+  const [navOpen, setNavOpen] = useState(false)
 
   async function logout() {
     await logoutRequest()
@@ -12,11 +14,23 @@ export default function Layout() {
 
   return (
     <div className="shell">
-      <nav className="sidebar">
+      {!navOpen && (
+        <button className="nav-toggle" onClick={() => setNavOpen(true)} aria-label="Open menu">
+          ☰
+        </button>
+      )}
+      {navOpen && <div className="nav-overlay" onClick={() => setNavOpen(false)} />}
+      <nav className={`sidebar${navOpen ? ' open' : ''}`}>
         <div className="brand">SubTrack</div>
-        <NavLink to="/subscriptions">Subscriptions</NavLink>
-        <NavLink to="/transactions">Transactions</NavLink>
-        <NavLink to="/accounts">Accounts</NavLink>
+        <NavLink to="/subscriptions" onClick={() => setNavOpen(false)}>
+          Subscriptions
+        </NavLink>
+        <NavLink to="/transactions" onClick={() => setNavOpen(false)}>
+          Transactions
+        </NavLink>
+        <NavLink to="/accounts" onClick={() => setNavOpen(false)}>
+          Accounts
+        </NavLink>
         <div className="spacer" />
         <button onClick={logout}>Sign out</button>
       </nav>

@@ -4,7 +4,9 @@
 #
 # Secrets (Plaid, encryption key, JWT) are read from backend/.env — the same
 # file used for local development. DATABASE_URL is overridden below to point
-# at the postgres service.
+# at the postgres service. VITE_GOOGLE_CLIENT_ID is a frontend *build* arg
+# (baked into the JS bundle by Vite, not a runtime env var), sourced from a
+# root-level .env, which Compose auto-loads for ${...} substitution here.
 
 services:
   db:
@@ -45,7 +47,10 @@ services:
       retries: 10
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID}
     ports:
       - "5173:80"
     depends_on:

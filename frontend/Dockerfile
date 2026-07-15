@@ -4,6 +4,10 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+# Vite bakes import.meta.env.VITE_* into the bundle at build time, so the
+# build arg has to be promoted to a real env var before `npm run build` runs.
+ARG VITE_GOOGLE_CLIENT_ID
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 RUN npm run build
 
 # Serve stage: nginx serves the SPA and proxies /api to the backend,

@@ -22,6 +22,10 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class GoogleLoginRequest(BaseModel):
+    id_token: str
+
+
 class TokenPair(BaseModel):
     access_token: str
     refresh_token: str
@@ -53,6 +57,36 @@ def login(body: Credentials, db: Session = Depends(get_db)) -> TokenPair:
     if user is None or not auth.verify_password(body.password, user.password_hash):
         # Same error for unknown email and wrong password.
         raise HTTPException(status_code=401, detail="invalid credentials")
+    return _token_pair(user.id, user.token_version)
+
+
+@router.post("/google")
+def google_login(body: GoogleLoginRequest, db: Session = Depends(get_db)) -> TokenPair:
+    """Verify a Google-issued ID token and log in, creating a User on first
+    sign-in. Google accounts get the "!" password sentinel (already used by
+    this codebase's own test fixtures for "no real password") — a Google
+    login only auto-reuses an existing row when it carries that sentinel;
+    a real password on the row means the email was claimed via /auth/register
+    first, and we refuse to silently merge identities across auth methods
+    (an unverified-email account-takeover vector, since registration has no
+    email verification step)."""
+    try:
+        payload = auth.verify_google_id_token(body.id_token)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="invalid Google credential")
+
+    email = payload["email"].strip().lower()
+    user = db.scalar(select(User).where(User.email == email))
+    if user is None:
+        user = User(email=email, password_hash="!")
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    elif user.password_hash != "!":
+        raise HTTPException(
+            status_code=409,
+            detail="an account with this email already exists — sign in with your password",
+        )
     return _token_pair(user.id, user.token_version)
 
 

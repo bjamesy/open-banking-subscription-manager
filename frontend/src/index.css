@@ -74,6 +74,11 @@ body {
   flex: 1;
 }
 
+.nav-toggle,
+.nav-overlay {
+  display: none;
+}
+
 .sidebar button {
   background: none;
   border: none;
@@ -93,12 +98,19 @@ body {
 .main {
   padding: 28px 36px;
   max-width: 1200px;
+  /* .main is a grid item (.shell); grid items default to min-width: auto,
+     so they refuse to shrink below their content's intrinsic width — which
+     defeats .table-wrap's overflow-x: auto and stretches the whole page
+     horizontally instead of just scrolling the table. */
+  min-width: 0;
 }
 
 .page-header {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
   margin-bottom: 20px;
 }
 
@@ -115,6 +127,11 @@ body {
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 table {
@@ -298,9 +315,39 @@ label {
   color: var(--text-muted);
 }
 
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin: 8px 0;
+  color: var(--text-secondary);
+}
+
+.status-row.ok {
+  color: var(--ok);
+}
+
+.spinner {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .pagination {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   padding: 10px 14px;
   font-size: 13px;
@@ -313,10 +360,12 @@ label {
   min-height: 100vh;
   display: grid;
   place-items: center;
+  padding: 16px;
 }
 
 .login-card {
-  width: 340px;
+  width: 100%;
+  max-width: 340px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -344,4 +393,86 @@ label {
   margin-top: 14px;
   font-size: 13px;
   color: var(--text-secondary);
+}
+
+.login-card .divider {
+  margin: 16px 0 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* --- mobile (docs/specs/ui.md is desktop-first; this is the "still usable
+   on a phone" pass, not a mobile-first redesign) -------------------------- */
+
+@media (max-width: 768px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .nav-toggle {
+    display: block;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 30;
+    width: 36px;
+    height: 36px;
+    background: var(--sidebar-bg);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    cursor: pointer;
+  }
+
+  .nav-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 20;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 208px;
+    z-index: 25;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .main {
+    padding: 60px 16px 16px;
+    max-width: 100%;
+  }
+
+  .stats {
+    flex-direction: column;
+  }
+
+  .stat {
+    min-width: 0;
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbar > div {
+    width: 100%;
+  }
+
+  .toolbar input,
+  .toolbar select {
+    width: 100%;
+  }
 }

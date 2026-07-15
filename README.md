@@ -10,6 +10,11 @@ cp backend/.env.example backend/.env   # fill in Plaid creds + ENCRYPTION_KEY
 docker compose up --build
 ```
 
+Optional: to show the Google Sign-In button, set `GOOGLE_CLIENT_ID` in
+`backend/.env` and add a root-level `.env` with `VITE_GOOGLE_CLIENT_ID=<same
+id>` — Compose reads it as a frontend *build* arg (Vite bakes it into the
+bundle, so it can't be a runtime env var).
+
 - App: http://localhost:5173 (SPA + `/api` proxy)
 - API: http://localhost:8000 (docs at `/docs`)
 - Postgres data persists in the `pgdata` volume (`docker compose down -v` resets)
