@@ -27,6 +27,7 @@ router = APIRouter()
 
 class AccountOut(BaseModel):
     id: int
+    item_id: int
     name: str
     mask: Optional[str] = None
     type: Optional[str] = None
@@ -34,6 +35,7 @@ class AccountOut(BaseModel):
     currency: Optional[str] = None
     institution_name: Optional[str] = None
     item_status: str
+    error: Optional[str] = None
     last_synced_at: Optional[datetime] = None
 
 
@@ -64,6 +66,7 @@ def list_accounts(
     return [
         AccountOut(
             id=account.id,
+            item_id=item.id,
             name=account.name,
             mask=account.mask,
             type=account.type,
@@ -71,10 +74,35 @@ def list_accounts(
             currency=account.currency,
             institution_name=item.institution_name,
             item_status=item.status,
+            error=item.error,
             last_synced_at=item.last_synced_at,
         )
         for account, item in rows
     ]
+
+
+class ReconnectOut(BaseModel):
+    item_id: int
+    item_status: str
+
+
+@router.post("/{item_id}/reconnect")
+def reconnect_item(
+    item_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ReconnectOut:
+    """Clear an Item's error state after the user completes Link update mode
+    (architecture §5.2/§2.1) — the existing access_token remains valid once
+    re-authenticated, so this just resets status; sync itself is left to the
+    existing re-scan flow."""
+    item = db.scalar(select(Item).where(Item.id == item_id, Item.user_id == user.id))
+    if item is None:
+        raise HTTPException(status_code=404, detail="item not found")
+    item.status = "active"
+    item.error = None
+    db.commit()
+    return ReconnectOut(item_id=item.id, item_status=item.status)
 
 
 @router.post("/rescan", status_code=202)

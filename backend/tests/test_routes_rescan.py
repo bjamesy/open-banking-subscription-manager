@@ -6,7 +6,7 @@ import subtrack.config as config_module
 from subtrack.api.deps import get_banking_provider, get_session_factory
 from subtrack.db.models import Item, RescanJob, Transaction
 from subtrack.main import app
-from subtrack.providers.base import ProviderAccount, SyncResult
+from subtrack.providers.base import ProviderAccount, ReauthRequiredError, SyncResult
 from subtrack.security import crypto
 from tests.test_ingestion_sync import FakeProvider, _txn
 
@@ -106,6 +106,38 @@ def test_rescan_skips_inactive_items(client, monkeypatch) -> None:
     assert body["status"] == "done"
     assert body["items_synced"] == 0
     assert body["items_failed"] == 0
+
+
+def test_rescan_marks_item_error_on_reauth_required(client, monkeypatch) -> None:
+    monkeypatch.setattr(
+        config_module.get_settings(), "encryption_key", crypto.generate_key(), raising=False
+    )
+    headers = _auth_headers(client)
+    _seed_item(client)
+
+    _override_provider_and_sessions(
+        client,
+        FakeProvider(exc=ReauthRequiredError("ITEM_LOGIN_REQUIRED", "bad login")),
+    )
+
+    r = client.post("/accounts/rescan", headers=headers)
+    job_id = r.json()["id"]
+    body = client.get(f"/accounts/rescan/{job_id}", headers=headers).json()
+    assert body["status"] == "done"
+    assert body["items_synced"] == 0
+    assert body["items_failed"] == 1
+
+    with client.sessionmaker() as s:
+        item = s.scalar(select(Item).where(Item.plaid_item_id == "item-1"))
+        assert item.status == "error"
+        assert item.error == "ITEM_LOGIN_REQUIRED"
+
+    # A follow-up rescan skips the now-errored item entirely.
+    r2 = client.post("/accounts/rescan", headers=headers)
+    job2_id = r2.json()["id"]
+    body2 = client.get(f"/accounts/rescan/{job2_id}", headers=headers).json()
+    assert body2["items_synced"] == 0
+    assert body2["items_failed"] == 0
 
 
 def test_rescan_conflicts_while_already_running(client, monkeypatch) -> None:

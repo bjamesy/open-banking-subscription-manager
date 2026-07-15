@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from subtrack.api.deps import get_db
+from subtrack.api.deps import get_current_user, get_db
 from subtrack.db.models import User
 from subtrack.security import auth
 
@@ -28,10 +28,10 @@ class TokenPair(BaseModel):
     token_type: str = "bearer"
 
 
-def _token_pair(user_id: int) -> TokenPair:
+def _token_pair(user_id: int, version: int) -> TokenPair:
     return TokenPair(
         access_token=auth.create_access_token(user_id),
-        refresh_token=auth.create_refresh_token(user_id),
+        refresh_token=auth.create_refresh_token(user_id, version),
     )
 
 
@@ -53,15 +53,25 @@ def login(body: Credentials, db: Session = Depends(get_db)) -> TokenPair:
     if user is None or not auth.verify_password(body.password, user.password_hash):
         # Same error for unknown email and wrong password.
         raise HTTPException(status_code=401, detail="invalid credentials")
-    return _token_pair(user.id)
+    return _token_pair(user.id, user.token_version)
 
 
 @router.post("/refresh")
 def refresh(body: RefreshRequest, db: Session = Depends(get_db)) -> TokenPair:
     try:
-        user_id = auth.decode_refresh_token(body.refresh_token)
+        user_id, version = auth.decode_refresh_token(body.refresh_token)
     except ValueError:
         raise HTTPException(status_code=401, detail="invalid or expired refresh token")
-    if db.get(User, user_id) is None:
+    user = db.get(User, user_id)
+    if user is None or user.token_version != version:
         raise HTTPException(status_code=401, detail="invalid or expired refresh token")
-    return _token_pair(user_id)
+    return _token_pair(user.id, user.token_version)
+
+
+@router.post("/logout", status_code=204)
+def logout(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> None:
+    """Revoke every outstanding refresh token for this user by bumping
+    token_version — global, not per-device (architecture §5.5). Access tokens
+    are unaffected and remain valid until their short natural expiry."""
+    user.token_version += 1
+    db.commit()

@@ -12,30 +12,7 @@ State as of 2026-07-06: full pipeline works end-to-end against Plaid sandbox
   National Bank/Vancity/ATB (§6.2), but production coverage is approved
   separately. Flinks remains the fallback behind the `BankingProvider` ABC.
 
-### 2. Item error handling / re-link flow
-`Item.status` / `Item.error` columns exist but nothing sets them. When Plaid
-returns `ITEM_LOGIN_REQUIRED` (expired bank login), sync fails silently for
-that Item (logged, skipped until the user re-scans). Needed: catch Plaid
-errors in `ingestion/sync.py`, set `Item.status="error"` + `error` code,
-surface in the Accounts UI, and implement Link **update mode** (link token
-with `access_token`) for re-authentication.
-
-### 3. Refresh-token revocation
-Refresh JWTs are stateless (`security/auth.py`) — logout/compromise can't
-invalidate them before expiry (30 days). Add a token table or `token_version`
-column on `users`, checked in `/auth/refresh`.
-
-### 4. `Transaction.raw_payload` JSON → JSONB (§6.7)
-Model uses the generic `JSON` type (kept for sqlite dev compatibility).
-Postgres migration should switch to JSONB for indexing/size. One Alembic
-migration; guard with dialect check or accept Postgres-only.
-
-### 5. Logging configuration
-Root logger is unconfigured — app `logger.info(...)` (link exchange, manual
-re-scan) is invisible under uvicorn. Configure structured logging (level from
-env) at app startup; ensure tokens/PII never logged.
-
-### 6. Cloud deployment
+### 2. Cloud deployment
 No deploy target chosen. §6.3's single-instance constraint no longer applies
 (no scheduler — see §5.2), so deployment topology is unconstrained on that
 front. Still needed: TLS, secrets management (not .env files), Postgres
@@ -43,14 +20,14 @@ backups.
 
 ## Detection quality
 
-### 7. AI prompt: exclude non-subscription recurring charges
+### 3. AI prompt: exclude non-subscription recurring charges
 Live run kept `CD Deposit`, `Credit Card Payment`, `Automatic Payment`,
 `Gusto Payroll` as "subscriptions" — recurring, but transfers/payroll, not
 subscriptions. Tweak `SYSTEM_PROMPT` in `detection/ai.py` (e.g. "bank
 transfers, credit-card payments, deposits, and payroll are not
 subscriptions — mark is_recurring=false") and re-verify against sandbox data.
 
-### 8. Merchant normalizer refinement
+### 4. Merchant normalizer refinement
 `normalize_merchant` is deliberately crude (strips digits, lowercases,
 truncates at first "."): `"SPOTIFY P1234ABCD"` → `"spotify p abcd"`. Good
 enough because the AI pass cleans names, but heuristic-only mode (no API key)
@@ -74,3 +51,9 @@ matters.
   low-stakes, user can just try again); revisit with a startup sweep
   (mark stale `running`/`pending` jobs `"failed"`) or a real task queue only
   if this becomes a real problem.
+- **Access tokens outlive logout** — `/auth/logout` bumps `User.token_version`,
+  which revokes all outstanding *refresh* tokens immediately, but access
+  tokens carry no version claim and remain valid until their natural
+  15-minute expiry. Accepted tradeoff (checking a DB column on every request
+  to close that window wasn't worth it for a token this short-lived); revisit
+  only if access token lifetime grows significantly.

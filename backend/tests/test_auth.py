@@ -60,6 +60,29 @@ def test_token_types_not_interchangeable(client) -> None:
     assert r.status_code == 401
 
 
+def test_logout_requires_auth(client) -> None:
+    assert client.post("/auth/logout").status_code == 401
+
+
+def test_logout_revokes_refresh_token(client) -> None:
+    client.post("/auth/register", json=CREDS)
+    pair = client.post("/auth/login", json=CREDS).json()
+
+    r = client.post(
+        "/auth/logout", headers={"Authorization": f"Bearer {pair['access_token']}"}
+    )
+    assert r.status_code == 204
+
+    # The refresh token issued before logout is now rejected...
+    r = client.post("/auth/refresh", json={"refresh_token": pair["refresh_token"]})
+    assert r.status_code == 401
+
+    # ...but a fresh login still works and issues a usable pair.
+    new_pair = client.post("/auth/login", json=CREDS).json()
+    r = client.post("/auth/refresh", json={"refresh_token": new_pair["refresh_token"]})
+    assert r.status_code == 200
+
+
 def test_login_wrong_password(client) -> None:
     client.post("/auth/register", json=CREDS)
     r = client.post("/auth/login", json={**CREDS, "password": "wrong-password"})

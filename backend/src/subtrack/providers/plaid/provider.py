@@ -20,7 +20,9 @@ from subtrack.providers.base import (
     BankingProvider,
     LinkToken,
     ProviderAccount,
+    ProviderError,
     ProviderTransaction,
+    ReauthRequiredError,
     SyncResult,
     TokenExchange,
 )
@@ -45,7 +47,9 @@ class PlaidProvider(BankingProvider):
         )
         return plaid_api.PlaidApi(plaid.ApiClient(configuration))
 
-    def create_link_token(self, client_user_id: str) -> LinkToken:
+    def create_link_token(
+        self, client_user_id: str, access_token: Optional[str] = None
+    ) -> LinkToken:
         from plaid.model.country_code import CountryCode
         from plaid.model.link_token_create_request import LinkTokenCreateRequest
         from plaid.model.link_token_create_request_user import (
@@ -54,15 +58,20 @@ class PlaidProvider(BankingProvider):
         from plaid.model.products import Products
 
         settings = get_settings()
-        response = self._client().link_token_create(
-            LinkTokenCreateRequest(
-                user=LinkTokenCreateRequestUser(client_user_id=client_user_id),
-                client_name=settings.plaid_client_name,
-                products=[Products(p) for p in settings.plaid_products_list],
-                country_codes=[CountryCode(c) for c in settings.plaid_country_codes_list],
-                language="en",
-            )
-        )
+        kwargs = {
+            "user": LinkTokenCreateRequestUser(client_user_id=client_user_id),
+            "client_name": settings.plaid_client_name,
+            "country_codes": [CountryCode(c) for c in settings.plaid_country_codes_list],
+            "language": "en",
+        }
+        if access_token:
+            # Update mode (re-auth of an existing Item): pass the existing
+            # access_token and omit products, per Plaid's update-mode guidance.
+            kwargs["access_token"] = access_token
+        else:
+            kwargs["products"] = [Products(p) for p in settings.plaid_products_list]
+
+        response = self._client().link_token_create(LinkTokenCreateRequest(**kwargs))
         return LinkToken(link_token=response.link_token)
 
     def exchange_public_token(self, public_token: str) -> TokenExchange:
@@ -80,6 +89,7 @@ class PlaidProvider(BankingProvider):
     def sync_transactions(
         self, access_token: str, cursor: Optional[str]
     ) -> SyncResult:
+        from plaid.exceptions import ApiException
         from plaid.model.transactions_sync_request import TransactionsSyncRequest
 
         client = self._client()
@@ -92,7 +102,10 @@ class PlaidProvider(BankingProvider):
             kwargs = {"access_token": access_token}
             if next_cursor:
                 kwargs["cursor"] = next_cursor
-            response = client.transactions_sync(TransactionsSyncRequest(**kwargs))
+            try:
+                response = client.transactions_sync(TransactionsSyncRequest(**kwargs))
+            except ApiException as exc:
+                raise self._translate_error(exc) from exc
 
             added.extend(self._to_txn(t) for t in response.added)
             modified.extend(self._to_txn(t) for t in response.modified)
@@ -109,6 +122,20 @@ class PlaidProvider(BankingProvider):
             cursor=next_cursor,
             has_more=False,
         )
+
+    @staticmethod
+    def _translate_error(exc) -> ProviderError:
+        # exc.body is a UTF-8 decoded JSON string by the time it reaches us
+        # (plaid-python's api_client.py decodes it before re-raising).
+        try:
+            body = json.loads(exc.body) if exc.body else {}
+        except (TypeError, ValueError):
+            body = {}
+        code = body.get("error_code") or "UNKNOWN"
+        message = body.get("error_message") or str(exc)
+        if code == "ITEM_LOGIN_REQUIRED":
+            return ReauthRequiredError(code, message)
+        return ProviderError(code, message)
 
     def get_accounts(self, access_token: str) -> List[ProviderAccount]:
         from plaid.model.accounts_get_request import AccountsGetRequest

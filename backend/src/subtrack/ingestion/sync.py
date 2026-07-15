@@ -14,7 +14,11 @@ from sqlalchemy.orm import Session
 
 from subtrack.db.models import Account, Item, Transaction
 from subtrack.detection.engine import run_detection
-from subtrack.providers.base import BankingProvider, ProviderTransaction
+from subtrack.providers.base import (
+    BankingProvider,
+    ProviderTransaction,
+    ReauthRequiredError,
+)
 from subtrack.security import crypto
 
 logger = logging.getLogger(__name__)
@@ -99,6 +103,15 @@ def rescan_items(
             sync_item(session, item, provider)
             user_ids.add(item.user_id)
             synced += 1
+        except ReauthRequiredError as exc:
+            session.rollback()
+            item.status = "error"
+            item.error = exc.code
+            session.commit()
+            failed += 1
+            logger.warning(
+                "item %s needs re-auth: %s", item.plaid_item_id, exc.code
+            )
         except Exception:
             session.rollback()
             failed += 1

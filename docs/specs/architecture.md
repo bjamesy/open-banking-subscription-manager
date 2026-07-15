@@ -24,7 +24,9 @@ This document covers system design only. Product scope, roadmap, data-model DDL,
 
 **Reuse:** adapted from a prior project's Plaid integration — see §6.1 (resolved).
 
-**Key operations:** `link_token_create`, `item_public_token_exchange`, `transactions_sync` (cursor-based). No inbound webhook handling — see §5.2.
+**Key operations:** `link_token_create` (plain or update mode, passing `access_token` to re-auth an existing Item instead of creating one), `item_public_token_exchange`, `transactions_sync` (cursor-based). No inbound webhook handling — see §5.2.
+
+**Error translation:** Plaid-specific errors (a raw `plaid.exceptions.ApiException`, HTTP-body JSON with `error_code`) are parsed and translated into the provider-agnostic `ProviderError`/`ReauthRequiredError` hierarchy (`providers/base.py`) before leaving this layer — `ingestion/sync.py` and route handlers only ever see the agnostic types, never Plaid SDK exceptions directly, per the `BankingProvider` abstraction boundary (§5.1). `ReauthRequiredError` (Plaid's `ITEM_LOGIN_REQUIRED`) sets `Item.status="error"` and is cleared by Link update mode via `POST /accounts/{item_id}/reconnect`.
 
 **Abstraction boundary:** A `BankingProvider` abstract base class (`abc.ABC`) exposes `create_link_token`, `exchange_public_token`, `sync_transactions`, and `get_accounts`. The rest of the app depends on this ABC, not the Plaid class. This is the single seam where swapping or adding an aggregator (relevant given Canadian coverage uncertainty — see §6.2) requires code changes. Webhook payload parsing is provider-specific by nature and stays inside the Plaid module, not on the ABC.
 
@@ -67,7 +69,7 @@ This document covers system design only. Product scope, roadmap, data-model DDL,
 
 **Framework:** `FastAPI` — native async (aligns with async DB drivers), first-class Pydantic validation, auto-generated OpenAPI schema for frontend work, low overhead for a single-service MVP.
 
-**Auth:** `python-jose` (JWT) + `bcrypt` used directly (passlib was dropped: unmaintained, warns on bcrypt≥4.1). Short-lived access tokens implemented; refresh tokens still open (§6.4).
+**Auth:** `python-jose` (JWT) + `bcrypt` used directly (passlib was dropped: unmaintained, warns on bcrypt≥4.1). Access + refresh tokens implemented, the latter revocable via `token_version` (§5.5); social login still open (§6.4).
 
 **Config:** `pydantic-settings` — a `Settings` class reads DB URL, Plaid credentials, encryption key, and JWT secret from environment variables, validated at startup.
 
@@ -92,7 +94,7 @@ This document covers system design only. Product scope, roadmap, data-model DDL,
 | Entity | Description |
 |--------|-------------|
 | `User` | Authenticated user. Owns Items and subscriptions. |
-| `Item` | One Plaid connection to one institution. Holds the encrypted `access_token`, `item_id`, sync `cursor`, and error state. A user may have several. |
+| `Item` | One Plaid connection to one institution. Holds the encrypted `access_token`, `item_id`, sync `cursor`, and error state. A user may have several. `status`/`error` are set on `ReauthRequiredError` (e.g. Plaid `ITEM_LOGIN_REQUIRED`) and cleared by `POST /accounts/{item_id}/reconnect` after Link update mode. |
 | `Account` | A single bank/credit account within an Item. |
 | `Transaction` | A normalized Plaid transaction. Notable fields: `plaid_transaction_id` (idempotency key), `account_id`, `amount`, `currency`, `merchant_raw`, `merchant_normalized`, `posted_at`, `removed`, `raw_payload` (JSONB). |
 | `DetectedSubscription` | Detection output: `merchant_normalized`, `amount`, `cadence`, `confidence_score`, `status` (detected/confirmed/dismissed), `next_expected_charge`, `detection_source`. |
@@ -120,6 +122,8 @@ The re-scan itself doesn't run inline in the HTTP request either — it's a thir
 | Plaid `access_token` per Item | DB, encrypted | Fernet; decrypted in-memory only during a sync call; never logged or returned in responses |
 | JWT signing secret | Env var | `python-jose`; short-lived access + refresh tokens |
 
+Refresh tokens carry a `ver` claim checked against `User.token_version` in `/auth/refresh`; `POST /auth/logout` bumps it, revoking every outstanding refresh token for that user at once (global, not per-device — simplest option that satisfies "logout/compromise can invalidate tokens"). Access tokens are unversioned and remain valid until their short natural expiry even after logout — an accepted tradeoff (`docs/BACKLOG.md`), not a gap left open by oversight.
+
 Access tokens are decrypted only inside the Plaid Integration Layer, immediately before a call. The `Item` ORM model exposes only the ciphertext column; decryption lives on the service layer, not the model.
 
 ---
@@ -133,8 +137,8 @@ Confirmed with the user: Python, Plaid, Canadian market, prior-Plaid-code reuse,
 | 6.1 | **Resolved:** the Plaid integration is Python on a current `plaid-python`, implemented in `providers/plaid/provider.py` and sandbox-verified end-to-end. | — |
 | 6.2 | **Sandbox-verified (2026-07-06):** Plaid sandbox with `country_codes=[CA]` lists RBC, Scotiabank, TD, BMO, CIBC, Tangerine, Desjardins, National Bank, Vancity, and ATB; full link → sync → detection pipeline ran against TD Canada Trust sandbox data (CAD). | Production institution coverage still needs verification when applying for Plaid production access. Flinks remains the fallback behind the `BankingProvider` ABC. |
 | 6.3 | **Resolved:** no scheduler exists — sync is one-shot at link time plus manual re-scan (§5.2). Single-instance deployment is no longer a correctness requirement for sync. | — |
-| 6.4 | Auth is username/password + JWT (**implemented**; access tokens only). | Confirm whether Google/Apple OAuth and refresh tokens are in scope. |
+| 6.4 | Auth is username/password + JWT, with revocable refresh tokens (**implemented** — `token_version`, §5.5). | Confirm whether Google/Apple OAuth is in scope. |
 | 6.5 | The AI detection pass defaults to `claude-opus-4-8` (overridable via `ANTHROPIC_MODEL`). | Confirm the acceptable per-run API cost envelope; a cheaper model can be configured if needed. |
 | 6.6 | **Resolved:** the frontend is a Vite + React + TypeScript SPA in `frontend/` (monorepo), consuming the JSON API via an `/api` proxy. Stack mirrors the prior cresidential project. | — |
-| 6.7 | `raw_payload` (full Plaid object) is retained as JSONB for re-detection and debugging. | Confirm whether storage cost warrants pruning it. |
+| 6.7 | **Resolved:** `raw_payload` (full Plaid object) is retained as JSONB on Postgres (`JSON().with_variant(JSONB(), "postgresql")`, plain JSON under sqlite dev) for re-detection and debugging. | Confirm whether storage cost warrants pruning it. |
 | 6.8 | No specific Canadian privacy-law (PIPEDA / Quebec Law 25) affordances are built for MVP. | Given real user financial data, confirm whether consent logging, data deletion, or residency requirements are in scope before storing production data. |

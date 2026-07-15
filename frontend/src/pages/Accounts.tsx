@@ -94,6 +94,7 @@ export default function Accounts() {
                 <th>Type</th>
                 <th>Status</th>
                 <th>Last synced</th>
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -108,14 +109,23 @@ export default function Accounts() {
                     {[a.type, a.subtype].filter(Boolean).join(' / ') || '—'}
                   </td>
                   <td>
-                    <span className={`badge ${a.item_status === 'active' ? 'confirmed' : ''}`}>
+                    <span
+                      className={`badge ${a.item_status === 'active' ? 'confirmed' : ''}`}
+                      style={a.item_status !== 'active' ? { color: 'var(--danger)', borderColor: '#fecaca' } : undefined}
+                    >
                       {a.item_status}
                     </span>
+                    {a.error && <div className="muted" style={{ fontSize: 12 }}>{a.error}</div>}
                   </td>
                   <td className="muted">
                     {a.last_synced_at
                       ? new Date(a.last_synced_at).toLocaleString()
                       : 'never'}
+                  </td>
+                  <td className="num">
+                    {a.item_status !== 'active' && (
+                      <ConnectBank itemId={a.item_id} onConnected={() => { reload(); rescan() }} />
+                    )}
                   </td>
                 </tr>
               ))}

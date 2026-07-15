@@ -1,10 +1,11 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { clearTokens } from '../api/client'
+import { clearTokens, logout as logoutRequest } from '../api/client'
 
 export default function Layout() {
   const navigate = useNavigate()
 
-  function logout() {
+  async function logout() {
+    await logoutRequest()
     clearTokens()
     navigate('/login')
   }

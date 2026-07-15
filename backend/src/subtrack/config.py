@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     )
 
     app_env: str = "development"
+    log_level: str = "INFO"
 
     # Persistence
     database_url: str = "sqlite:///./subtrack.db"

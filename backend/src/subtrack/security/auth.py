@@ -9,12 +9,17 @@ secret from JWT_SECRET:
   /auth/refresh for a new pair
 
 Tokens carry a `type` claim and each decoder enforces it, so a refresh token
-cannot be used as an access token or vice versa. Refresh tokens are stateless
-(no server-side revocation list) — acceptable for MVP, revisit for production.
+cannot be used as an access token or vice versa. Refresh tokens additionally
+carry a `ver` claim checked against `User.token_version` in /auth/refresh —
+bumping it (on logout) revokes every outstanding refresh token for that user.
+Access tokens are unversioned and stay valid until their short natural expiry
+even after logout; that window is the accepted tradeoff for not checking a DB
+column on every request.
 """
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from typing import Optional, Tuple
 
 import bcrypt
 from jose import JWTError, jwt
@@ -34,20 +39,24 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
-def _encode(user_id: int, token_type: str, lifetime: timedelta) -> str:
+def _encode(
+    user_id: int,
+    token_type: str,
+    lifetime: timedelta,
+    extra: Optional[dict] = None,
+) -> str:
     settings = get_settings()
-    return jwt.encode(
-        {
-            "sub": str(user_id),
-            "type": token_type,
-            "exp": datetime.now(timezone.utc) + lifetime,
-        },
-        settings.jwt_secret,
-        algorithm=settings.jwt_algorithm,
-    )
+    payload = {
+        "sub": str(user_id),
+        "type": token_type,
+        "exp": datetime.now(timezone.utc) + lifetime,
+    }
+    if extra:
+        payload.update(extra)
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
-def _decode(token: str, expected_type: str) -> int:
+def _decode(token: str, expected_type: str) -> dict:
     settings = get_settings()
     try:
         payload = jwt.decode(
@@ -55,7 +64,7 @@ def _decode(token: str, expected_type: str) -> int:
         )
         if payload.get("type") != expected_type:
             raise ValueError("wrong token type")
-        return int(payload["sub"])
+        return payload
     except (JWTError, KeyError, ValueError) as exc:
         raise ValueError("invalid token") from exc
 
@@ -65,16 +74,20 @@ def create_access_token(user_id: int) -> str:
     return _encode(user_id, "access", timedelta(minutes=minutes))
 
 
-def create_refresh_token(user_id: int) -> str:
+def create_refresh_token(user_id: int, version: int) -> str:
     days = get_settings().refresh_token_expire_days
-    return _encode(user_id, "refresh", timedelta(days=days))
+    return _encode(user_id, "refresh", timedelta(days=days), extra={"ver": version})
 
 
 def decode_access_token(token: str) -> int:
     """Return the user id from a valid access token; raise ValueError otherwise."""
-    return _decode(token, "access")
+    return int(_decode(token, "access")["sub"])
 
 
-def decode_refresh_token(token: str) -> int:
-    """Return the user id from a valid refresh token; raise ValueError otherwise."""
-    return _decode(token, "refresh")
+def decode_refresh_token(token: str) -> Tuple[int, int]:
+    """Return (user_id, version) from a valid refresh token; raise ValueError otherwise."""
+    payload = _decode(token, "refresh")
+    try:
+        return int(payload["sub"]), int(payload["ver"])
+    except (KeyError, ValueError) as exc:
+        raise ValueError("invalid token") from exc

@@ -80,6 +80,7 @@ export type Subscription = {
 
 export type Account = {
   id: number
+  item_id: number
   name: string
   mask: string | null
   type: string | null
@@ -87,6 +88,7 @@ export type Account = {
   currency: string | null
   institution_name: string | null
   item_status: string
+  error: string | null
   last_synced_at: string | null
 }
 
@@ -116,6 +118,12 @@ export async function register(email: string, password: string): Promise<void> {
 export async function login(email: string, password: string): Promise<void> {
   const r = await api.post('/auth/login', { email, password })
   setTokens(r.data.access_token, r.data.refresh_token)
+}
+
+export async function logout(): Promise<void> {
+  // Best-effort: a failed revocation shouldn't trap the user in a logged-in
+  // UI state — local tokens get cleared by the caller regardless.
+  await api.post('/auth/logout').catch(() => {})
 }
 
 export async function listSubscriptions(status?: string): Promise<Subscription[]> {
@@ -156,13 +164,17 @@ export async function listTransactions(params: {
   return r.data
 }
 
-export async function createLinkToken(): Promise<string> {
-  const r = await api.post('/link/token')
+export async function createLinkToken(itemId?: number): Promise<string> {
+  const r = await api.post('/link/token', itemId ? { item_id: itemId } : {})
   return r.data.link_token
 }
 
 export async function exchangePublicToken(publicToken: string): Promise<void> {
   await api.post('/link/exchange', { public_token: publicToken })
+}
+
+export async function reconnectItem(itemId: number): Promise<void> {
+  await api.post(`/accounts/${itemId}/reconnect`)
 }
 
 export type RescanJob = {

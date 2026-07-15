@@ -19,6 +19,7 @@ from subtrack.providers.base import (
     LinkToken,
     ProviderAccount,
     ProviderTransaction,
+    ReauthRequiredError,
     SyncResult,
     TokenExchange,
 )
@@ -26,17 +27,29 @@ from subtrack.security import crypto
 
 
 class FakeProvider(BankingProvider):
-    def __init__(self, result: SyncResult, accounts: List[ProviderAccount]):
+    def __init__(
+        self,
+        result: Optional[SyncResult] = None,
+        accounts: Optional[List[ProviderAccount]] = None,
+        exc: Optional[Exception] = None,
+    ):
         self._result = result
-        self._accounts = accounts
+        self._accounts = accounts or []
+        self._exc = exc
+        self.last_link_token_access_token: Optional[str] = "__unset__"
 
-    def create_link_token(self, client_user_id: str) -> LinkToken:
-        raise NotImplementedError
+    def create_link_token(
+        self, client_user_id: str, access_token: Optional[str] = None
+    ) -> LinkToken:
+        self.last_link_token_access_token = access_token
+        return LinkToken(link_token="fake-link-token")
 
     def exchange_public_token(self, public_token: str) -> TokenExchange:
         raise NotImplementedError
 
     def sync_transactions(self, access_token: str, cursor: Optional[str]) -> SyncResult:
+        if self._exc:
+            raise self._exc
         return self._result
 
     def get_accounts(self, access_token: str) -> List[ProviderAccount]:
@@ -125,6 +138,14 @@ def test_sync_modified_updates_and_removed_flags(session: Session, item: Item) -
     assert row.amount == Decimal("11.00")
     assert row.removed is True
     assert session.scalars(select(Transaction)).all().__len__() == 1  # no duplicate
+
+
+def test_sync_item_propagates_reauth_required(session: Session, item: Item) -> None:
+    """sync_item itself doesn't catch provider errors — that's rescan_items's
+    job (it persists Item.status/error); sync_item just re-raises."""
+    provider = FakeProvider(exc=ReauthRequiredError("ITEM_LOGIN_REQUIRED", "bad login"))
+    with pytest.raises(ReauthRequiredError):
+        sync_item(session, item, provider)
 
 
 def test_sync_creates_missing_account_instead_of_dropping(

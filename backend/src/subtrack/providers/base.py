@@ -55,9 +55,28 @@ class SyncResult:
     has_more: bool = False
 
 
+class ProviderError(Exception):
+    """A provider call failed. `code`/`message` are provider-specific but kept
+    provider-agnostic in shape so callers never need to know which aggregator
+    is behind the ABC."""
+
+    def __init__(self, code: str, message: str):
+        self.code = code
+        self.message = message
+        super().__init__(f"{code}: {message}")
+
+
+class ReauthRequiredError(ProviderError):
+    """The access token needs Link update-mode re-authentication (e.g. Plaid's
+    ITEM_LOGIN_REQUIRED) — the connection itself isn't broken, the user's bank
+    login needs to be redone."""
+
+
 class BankingProvider(ABC):
     @abstractmethod
-    def create_link_token(self, client_user_id: str) -> LinkToken:
+    def create_link_token(
+        self, client_user_id: str, access_token: Optional[str] = None
+    ) -> LinkToken:
         ...
 
     @abstractmethod

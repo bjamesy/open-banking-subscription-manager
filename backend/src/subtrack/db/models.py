@@ -4,9 +4,10 @@ Notes:
 - `Item.access_token_encrypted` stores the Fernet-encrypted Plaid access token,
   never the plaintext. Encryption/decryption lives in `subtrack.security.crypto`
   and is applied at the service layer, not on the model.
-- `Transaction.raw_payload` keeps the full provider object as JSON. On Postgres
-  this should be migrated to JSONB; the generic JSON type here keeps sqlite dev
-  working (architecture §6.7).
+- `Transaction.raw_payload` keeps the full provider object as JSON, stored as
+  JSONB on Postgres (indexing/size) and plain JSON under sqlite dev via
+  `.with_variant(...)` — one column type, no dialect branching elsewhere
+  (architecture §6.7, resolved).
 """
 from __future__ import annotations
 
@@ -24,6 +25,7 @@ from sqlalchemy import (
     String,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from subtrack.db.base import Base
@@ -35,6 +37,8 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
+    # Bumped on logout to revoke all outstanding refresh tokens (§5.5).
+    token_version: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -89,7 +93,9 @@ class Transaction(Base):
     merchant_normalized: Mapped[Optional[str]] = mapped_column(String(512), index=True)
     posted_at: Mapped[date] = mapped_column(Date, index=True)
     removed: Mapped[bool] = mapped_column(Boolean, default=False)
-    raw_payload: Mapped[Optional[dict]] = mapped_column(JSON)
+    raw_payload: Mapped[Optional[dict]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
