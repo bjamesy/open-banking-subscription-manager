@@ -155,6 +155,15 @@ class PlaidProvider(BankingProvider):
             for a in response.accounts
         ]
 
+    def remove_item(self, access_token: str) -> None:
+        from plaid.exceptions import ApiException
+        from plaid.model.item_remove_request import ItemRemoveRequest
+
+        try:
+            self._client().item_remove(ItemRemoveRequest(access_token=access_token))
+        except ApiException as exc:
+            raise self._translate_error(exc) from exc
+
     @staticmethod
     def _to_txn(t) -> ProviderTransaction:
         # plaid-python's to_dict() leaves datetime.date objects in the dict,

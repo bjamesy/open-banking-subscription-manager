@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import Accounts from './pages/Accounts'
 import Login from './pages/Login'
+import Settings from './pages/Settings'
 import Subscriptions from './pages/Subscriptions'
 import Transactions from './pages/Transactions'
 import { getAccessToken } from './api/client'
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/subscriptions" element={<Subscriptions />} />
         <Route path="/transactions" element={<Transactions />} />
         <Route path="/accounts" element={<Accounts />} />
+        <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

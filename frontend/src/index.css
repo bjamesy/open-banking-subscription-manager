@@ -129,6 +129,24 @@ body {
   overflow: hidden;
 }
 
+.card.danger-zone {
+  border-color: #fecaca;
+  padding: 16px;
+}
+
+.card.danger-zone h2 {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--danger);
+  margin-bottom: 4px;
+}
+
+.card.danger-zone p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 14px;
+}
+
 .table-wrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -172,7 +190,8 @@ th.num {
 
 button.primary,
 button.ghost,
-button.subtle {
+button.subtle,
+button.danger {
   font: inherit;
   font-size: 13px;
   border-radius: 6px;
@@ -186,9 +205,16 @@ button.primary {
   border: 1px solid var(--accent);
 }
 
-button.primary:disabled {
+button.primary:disabled,
+button.danger:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+button.danger {
+  background: var(--danger);
+  color: #fff;
+  border: 1px solid var(--danger);
 }
 
 button.ghost {

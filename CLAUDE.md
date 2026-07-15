@@ -68,6 +68,8 @@ Also working: refresh tokens (typed access/refresh JWTs, `/auth/refresh`, revoca
 
 **Re-scan runs as an in-process background job**, not inline in the request: `POST /accounts/rescan` creates a `RescanJob` row and hands sync+detection to FastAPI's `BackgroundTasks`, returning `202` immediately; `GET /accounts/rescan/{job_id}` is polled (by the "Re-scan" button on the Accounts page) until the job is `done`/`failed`. Deliberately not a task queue (Celery/Redis) — same "no standing infra for an occasional action" reasoning as dropping the scheduler. Known gap, not fixed: a server restart mid-job leaves it `"running"` forever (`docs/BACKLOG.md`).
 
+**Account deletion.** `DELETE /auth/me` (Settings page, "danger zone") deletes a user and everything tied to them — architecture §6.8, first concrete piece of privacy compliance. Password-confirmed unless the account is Google-only (`password_hash="!"`, which has nothing to confirm). Plaid revocation (`BankingProvider.remove_item`) runs best-effort per `Item` before the local delete — a failed revoke never blocks a user from deleting their own data. No DB-level `ondelete` cascades exist on any FK, so the route deletes in FK-safe order itself (`DetectedSubscription`/`Transaction` → `Account` → `Item`/`RescanJob` → `User`). Consent logging and data-residency review are still open (`docs/BACKLOG.md`).
+
 All remaining work is tracked in **`docs/BACKLOG.md`** (production hardening, detection-quality tuning, and parked scope decisions, each with pickup context). Consult it before proposing "what's next"; keep it updated when items land or new gaps surface.
 
 ## Verifying against Plaid sandbox

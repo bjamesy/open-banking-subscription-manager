@@ -131,6 +131,10 @@ export async function logout(): Promise<void> {
   await api.post('/auth/logout').catch(() => {})
 }
 
+export async function deleteAccount(password: string): Promise<void> {
+  await api.delete('/auth/me', { data: { password: password || undefined } })
+}
+
 export async function listSubscriptions(status?: string): Promise<Subscription[]> {
   const r = await api.get('/subscriptions', { params: status ? { status } : {} })
   return r.data

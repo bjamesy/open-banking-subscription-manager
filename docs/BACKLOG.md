@@ -41,9 +41,15 @@ matters.
   needed); Apple isn't requested yet and would need Sign in with Apple's
   own (JWT-based, client-secret-as-a-signed-JWT) flow.
 - **Privacy compliance** (§6.8, PIPEDA / Quebec Law 25) — required before
-  storing real Canadian user financial data: consent logging, data deletion
-  endpoint (delete user → Items/transactions/subscriptions + Plaid
-  `/item/remove`), data-residency review.
+  storing real Canadian user financial data. **Data deletion shipped**
+  (`DELETE /auth/me`, Settings page — cascades Items/Accounts/Transactions/
+  DetectedSubscriptions/RescanJobs, best-effort Plaid `/item/remove`). Still
+  open: consent logging (no disclosure exists today that transaction data
+  goes to Anthropic for AI detection), and data-residency review (Postgres
+  location + Anthropic's US-based API are a cross-border transfer Law 25
+  cares about) — the latter isn't really "code," it falls out of wherever
+  this gets deployed and needs an actual privacy-law review, not just an
+  engineering fix.
 - **Product stretch** — renewal alerts (from `next_expected_charge`), spend
   trend charts, multi-account household view, unused-subscription flagging.
 - **Orphaned rescan jobs on restart** (§5.2) — `POST /accounts/rescan` runs via

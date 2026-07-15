@@ -1,14 +1,20 @@
-"""Registration, login, and token refresh (architecture §2.5)."""
+"""Registration, login, token refresh, and account deletion (architecture §2.5)."""
 from __future__ import annotations
+
+import logging
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from subtrack.api.deps import get_current_user, get_db
-from subtrack.db.models import User
-from subtrack.security import auth
+from subtrack.api.deps import get_banking_provider, get_current_user, get_db
+from subtrack.db.models import Account, DetectedSubscription, Item, RescanJob, Transaction, User
+from subtrack.providers.base import BankingProvider
+from subtrack.security import auth, crypto
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -20,6 +26,10 @@ class Credentials(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class DeleteAccountRequest(BaseModel):
+    password: Optional[str] = None
 
 
 class GoogleLoginRequest(BaseModel):
@@ -108,4 +118,42 @@ def logout(user: User = Depends(get_current_user), db: Session = Depends(get_db)
     token_version — global, not per-device (architecture §5.5). Access tokens
     are unaffected and remain valid until their short natural expiry."""
     user.token_version += 1
+    db.commit()
+
+
+@router.delete("/me", status_code=204)
+def delete_account(
+    body: DeleteAccountRequest,
+    user: User = Depends(get_current_user),
+    provider: BankingProvider = Depends(get_banking_provider),
+    db: Session = Depends(get_db),
+) -> None:
+    """Delete the current user and everything tied to them (architecture
+    §6.8 — privacy compliance, right to deletion). Google-only accounts
+    (password_hash="!") skip password confirmation — they have none to give,
+    and a valid access token is already the trust boundary. Plaid revocation
+    is best-effort per Item: a user's right to delete their own data
+    shouldn't be blocked by Plaid being briefly unavailable."""
+    if user.password_hash != "!":
+        if not body.password or not auth.verify_password(body.password, user.password_hash):
+            raise HTTPException(status_code=401, detail="incorrect password")
+
+    items = list(db.scalars(select(Item).where(Item.user_id == user.id)))
+    for item in items:
+        try:
+            provider.remove_item(crypto.decrypt(item.access_token_encrypted))
+        except Exception:
+            logger.exception(
+                "failed to revoke Plaid item %s during account deletion", item.plaid_item_id
+            )
+
+    # FK-safe order: children before parents, no DB cascade to lean on.
+    item_ids = select(Item.id).where(Item.user_id == user.id)
+    account_ids = select(Account.id).where(Account.item_id.in_(item_ids))
+    db.execute(delete(DetectedSubscription).where(DetectedSubscription.user_id == user.id))
+    db.execute(delete(Transaction).where(Transaction.account_id.in_(account_ids)))
+    db.execute(delete(Account).where(Account.item_id.in_(item_ids)))
+    db.execute(delete(Item).where(Item.user_id == user.id))
+    db.execute(delete(RescanJob).where(RescanJob.user_id == user.id))
+    db.delete(user)
     db.commit()

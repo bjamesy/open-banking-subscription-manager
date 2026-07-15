@@ -32,11 +32,14 @@ class FakeProvider(BankingProvider):
         result: Optional[SyncResult] = None,
         accounts: Optional[List[ProviderAccount]] = None,
         exc: Optional[Exception] = None,
+        remove_item_exc: Optional[Exception] = None,
     ):
         self._result = result
         self._accounts = accounts or []
         self._exc = exc
+        self._remove_item_exc = remove_item_exc
         self.last_link_token_access_token: Optional[str] = "__unset__"
+        self.removed_access_tokens: List[str] = []
 
     def create_link_token(
         self, client_user_id: str, access_token: Optional[str] = None
@@ -54,6 +57,11 @@ class FakeProvider(BankingProvider):
 
     def get_accounts(self, access_token: str) -> List[ProviderAccount]:
         return self._accounts
+
+    def remove_item(self, access_token: str) -> None:
+        self.removed_access_tokens.append(access_token)
+        if self._remove_item_exc:
+            raise self._remove_item_exc
 
 
 def _txn(txn_id: str, account_id: str, amount: str, desc: str, day: int) -> ProviderTransaction:

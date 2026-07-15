@@ -31,6 +31,9 @@ export default function Layout() {
         <NavLink to="/accounts" onClick={() => setNavOpen(false)}>
           Accounts
         </NavLink>
+        <NavLink to="/settings" onClick={() => setNavOpen(false)}>
+          Settings
+        </NavLink>
         <div className="spacer" />
         <button onClick={logout}>Sign out</button>
       </nav>

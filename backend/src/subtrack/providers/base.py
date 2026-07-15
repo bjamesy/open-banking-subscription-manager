@@ -90,3 +90,10 @@ class BankingProvider(ABC):
     @abstractmethod
     def get_accounts(self, access_token: str) -> List[ProviderAccount]:
         ...
+
+    @abstractmethod
+    def remove_item(self, access_token: str) -> None:
+        """Revoke this access token at the provider (architecture §6.8 —
+        account deletion). Callers treat this as best-effort: a failure here
+        should not block deleting the user's local data."""
+        ...
