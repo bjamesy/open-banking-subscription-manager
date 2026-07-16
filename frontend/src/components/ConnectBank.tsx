@@ -87,20 +87,24 @@ export default function ConnectBank({ onConnected, itemId }: Props) {
         {busy ? (itemId ? 'Reconnecting…' : 'Connecting…') : itemId ? 'Reconnect' : 'Connect bank account'}
       </button>
       {showConsent && (
-        <div className="card" style={{ padding: 16, marginTop: 8, maxWidth: 420 }}>
-          <p style={{ fontSize: 13, marginBottom: 10 }}>
-            Connecting your bank shares read-only transaction data with SubTrack via
-            Plaid. Merchant names and amounts are sent to Anthropic&apos;s Claude API to
-            help detect recurring subscriptions. Data is retained until you delete
-            your account (Settings), which also revokes SubTrack&apos;s bank access.
-          </p>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="primary" onClick={handleAgree}>
-              Agree &amp; continue
-            </button>
-            <button className="ghost" onClick={() => setShowConsent(false)}>
-              Cancel
-            </button>
+        <div className="modal-overlay" onClick={() => setShowConsent(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <h2>Before you connect</h2>
+            <p>
+              Connecting your bank shares read-only transaction data with SubTrack
+              via Plaid. Merchant names and amounts are sent to Anthropic&apos;s
+              Claude API to help detect recurring subscriptions. Data is retained
+              until you delete your account (Settings), which also revokes
+              SubTrack&apos;s bank access.
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="primary" onClick={handleAgree}>
+                Agree &amp; continue
+              </button>
+              <button className="ghost" onClick={() => setShowConsent(false)}>
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
