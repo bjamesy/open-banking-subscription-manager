@@ -135,6 +135,21 @@ export async function deleteAccount(password: string): Promise<void> {
   await api.delete('/auth/me', { data: { password: password || undefined } })
 }
 
+export type ConsentStatus = {
+  consented: boolean
+  version: string | null
+  granted_at: string | null
+}
+
+export async function getConsentStatus(): Promise<ConsentStatus> {
+  const r = await api.get('/consent')
+  return r.data
+}
+
+export async function grantConsent(): Promise<void> {
+  await api.post('/consent')
+}
+
 export async function listSubscriptions(status?: string): Promise<Subscription[]> {
   const r = await api.get('/subscriptions', { params: status ? { status } : {} })
   return r.data

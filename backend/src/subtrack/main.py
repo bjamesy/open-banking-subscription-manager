@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from subtrack.api.routes import (
     accounts,
     auth,
+    consent,
     health,
     link,
     subscriptions,
@@ -42,6 +43,7 @@ def create_app() -> FastAPI:
     app.include_router(
         subscriptions.router, prefix="/subscriptions", tags=["subscriptions"]
     )
+    app.include_router(consent.router, prefix="/consent", tags=["consent"])
     return app
 
 

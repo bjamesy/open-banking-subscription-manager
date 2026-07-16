@@ -43,13 +43,18 @@ matters.
 - **Privacy compliance** (§6.8, PIPEDA / Quebec Law 25) — required before
   storing real Canadian user financial data. **Data deletion shipped**
   (`DELETE /auth/me`, Settings page — cascades Items/Accounts/Transactions/
-  DetectedSubscriptions/RescanJobs, best-effort Plaid `/item/remove`). Still
-  open: consent logging (no disclosure exists today that transaction data
-  goes to Anthropic for AI detection), and data-residency review (Postgres
-  location + Anthropic's US-based API are a cross-border transfer Law 25
-  cares about) — the latter isn't really "code," it falls out of wherever
-  this gets deployed and needs an actual privacy-law review, not just an
-  engineering fix.
+  DetectedSubscriptions/RescanJobs, best-effort Plaid `/item/remove`).
+  **Consent logging shipped** (`GET`/`POST /consent`, `ConsentRecord` —
+  append-only, versioned via `CURRENT_VERSION` in `api/routes/consent.py`;
+  gated in `ConnectBank.tsx` before a *fresh* bank link, disclosing that
+  transaction data goes to Anthropic for AI detection — reconnects don't
+  re-prompt since consent was already given at first link). **The
+  disclosure copy is placeholder text, not reviewed by a lawyer** — needs
+  real legal review before this is safe to rely on with actual users. Still
+  open: data-residency review (Postgres location + Anthropic's US-based API
+  are a cross-border transfer Law 25 cares about) — this isn't "code," it
+  falls out of wherever this gets deployed and needs an actual privacy-law
+  review, not just an engineering fix.
 - **Product stretch** — renewal alerts (from `next_expected_charge`), spend
   trend charts, multi-account household view, unused-subscription flagging.
 - **Orphaned rescan jobs on restart** (§5.2) — `POST /accounts/rescan` runs via

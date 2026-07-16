@@ -144,3 +144,18 @@ class RescanJob(Base):
     )
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class ConsentRecord(Base):
+    """Audit log of privacy-notice consent grants (architecture §6.8) —
+    append-only: each row is one grant, not a mutable flag, so there's a
+    timestamped record of what was actually agreed to and when."""
+
+    __tablename__ = "consent_records"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    version: Mapped[str] = mapped_column(String(32))
+    granted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
