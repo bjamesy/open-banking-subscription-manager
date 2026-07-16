@@ -11,6 +11,14 @@ State as of 2026-07-06: full pipeline works end-to-end against Plaid sandbox
   production** — sandbox lists RBC/Scotiabank/TD/BMO/CIBC/Tangerine/Desjardins/
   National Bank/Vancity/ATB (§6.2), but production coverage is approved
   separately. Flinks remains the fallback behind the `BankingProvider` ABC.
+- The application requires live privacy-policy/terms URLs — `/privacy` and
+  `/terms` now exist (`frontend/src/pages/Privacy.tsx`, `Terms.tsx`), linked
+  from `Login.tsx`, the `ConnectBank.tsx` consent modal, and `Settings.tsx`.
+  **Both are placeholder text, not lawyer-reviewed** — needs real legal
+  review before submitting to Plaid or relying on with actual users. Two
+  known stubs inside: the Data Residency section (pending item 2's hosting
+  decision) and the contact address (`privacy@subtrack.app` — swap for a
+  real one).
 
 ### 2. Cloud deployment
 No deploy target chosen. §6.3's single-instance constraint no longer applies

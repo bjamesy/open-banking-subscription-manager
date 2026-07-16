@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { login, loginWithGoogle, register } from '../api/client'
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
@@ -138,6 +138,10 @@ export default function Login() {
               </button>
             </>
           )}
+        </p>
+        <p className="legal">
+          By continuing, you agree to our <Link to="/terms">Terms</Link> and{' '}
+          <Link to="/privacy">Privacy Policy</Link>.
         </p>
       </div>
     </div>

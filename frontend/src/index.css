@@ -185,6 +185,66 @@ body {
   margin-bottom: 16px;
 }
 
+/* --- policy pages (privacy/terms) ----------------------------------- */
+
+.doc-page {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+}
+
+.doc-page .back-link {
+  display: inline-block;
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  margin-bottom: 24px;
+}
+
+.doc-page .back-link:hover {
+  color: var(--text);
+}
+
+.doc-page h1 {
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin-bottom: 4px;
+}
+
+.doc-page .updated {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 32px;
+}
+
+.doc-page h2 {
+  font-size: 15px;
+  font-weight: 650;
+  margin-top: 28px;
+  margin-bottom: 8px;
+}
+
+.doc-page p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.doc-page ul {
+  margin: 0 0 12px 20px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.doc-page li {
+  margin-bottom: 4px;
+}
+
+.doc-page a {
+  color: var(--accent);
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -452,6 +512,12 @@ label {
   margin-top: 14px;
   font-size: 13px;
   color: var(--text-secondary);
+}
+
+.login-card .legal {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .login-card .divider {

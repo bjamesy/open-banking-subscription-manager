@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { clearTokens, deleteAccount } from '../api/client'
 
 function errorDetail(err: unknown, fallback: string): string {
@@ -85,6 +85,10 @@ export default function Settings() {
           </form>
         )}
       </div>
+
+      <p className="muted" style={{ marginTop: 16, fontSize: 13 }}>
+        <Link to="/privacy">Privacy Policy</Link> · <Link to="/terms">Terms of Service</Link>
+      </p>
     </>
   )
 }

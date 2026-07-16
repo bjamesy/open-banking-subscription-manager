@@ -2,8 +2,10 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import Accounts from './pages/Accounts'
 import Login from './pages/Login'
+import Privacy from './pages/Privacy'
 import Settings from './pages/Settings'
 import Subscriptions from './pages/Subscriptions'
+import Terms from './pages/Terms'
 import Transactions from './pages/Transactions'
 import { getAccessToken } from './api/client'
 
@@ -16,6 +18,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/terms" element={<Terms />} />
       <Route
         element={
           <RequireAuth>

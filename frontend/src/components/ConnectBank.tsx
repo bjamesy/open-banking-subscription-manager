@@ -2,6 +2,7 @@
 // flow, but authenticated (JWT interceptor) and against /link/token +
 // /link/exchange, which persist the encrypted Item server-side.
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { usePlaidLink } from 'react-plaid-link'
 import {
   createLinkToken,
@@ -95,7 +96,11 @@ export default function ConnectBank({ onConnected, itemId }: Props) {
               via Plaid. Merchant names and amounts are sent to Anthropic&apos;s
               Claude API to help detect recurring subscriptions. Data is retained
               until you delete your account (Settings), which also revokes
-              SubTrack&apos;s bank access.
+              SubTrack&apos;s bank access. Read the full{' '}
+              <Link to="/privacy" target="_blank" rel="noreferrer">
+                privacy policy
+              </Link>
+              .
             </p>
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="primary" onClick={handleAgree}>
